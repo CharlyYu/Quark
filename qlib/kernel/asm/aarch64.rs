@@ -38,10 +38,11 @@ pub fn SwapGs() {
 
 pub fn GetVcpuId() -> usize {
     let ret: u64;
-    let tls = unsafe { tpidr_el1() };
     unsafe {
-        asm!("ldr {1}, [{0}, #16]",
-        in(reg) tls,
+        asm!("\
+        mrs {0}, tpidr_el1
+        ldr {1}, [{0}, #16]",
+        out(reg) _,
         out(reg) ret);
     };
     return ret as usize;
@@ -107,19 +108,31 @@ pub fn IRet(kernelRsp: u64) -> ! {
 }
 
 #[inline]
-pub fn GetRsp() -> u64 {
-    let rsp: u64;
+pub fn GetCurrentKernelSp() -> u64 {
+    // we can only mrs sp_el1 in EL2 and EL3
+    // so we can only get sp_el1 by move
+    let ret: u64;
     unsafe {
-        asm!("mov {0}, sp", out(reg) rsp);
-    };
-    return rsp;
+        asm!("\
+        mrs {1}, spsel
+        msr spsel, #1
+        mov {0}, sp
+        msr spsel, {1}
+        ",
+        out(reg) ret,
+        out(reg) _);
+    }
+    ret
+}
+
+#[inline]
+pub fn GetCurrentUserSp() -> u64 {
+    unsafe { return sp_el0(); }
 }
 
 #[inline]
 pub fn Clflush(addr: u64) {
 }
-
-
 
 // HostID executes a native CPUID instruction.
 // return (ax, bx, cx, dx)
@@ -419,6 +432,7 @@ pub fn xgetbv() -> u64 {
     return val;
 }
 
+
 bitflags! {
     pub struct MairEl1: u64 {
         const DEVICE_MEMORY = 0x00 << 16;
@@ -541,5 +555,25 @@ pub unsafe fn tmr_tval_write(val: u64) {
 pub unsafe fn midr() -> u64 {
     let ret: u64;
     asm!("mrs {0}, midr_el1", out(reg) ret);
+    ret
+}
+
+
+#[inline]
+pub unsafe fn sp_el0() -> u64 {
+    let ret: u64;
+    asm!("mrs {0}, sp_el0", out(reg) ret);
+    ret
+}
+
+#[inline]
+pub unsafe fn sp_el0_write(val: u64) {
+    asm!("msr sp_el0, {0}", in(reg) val);
+}
+
+#[inline]
+pub unsafe fn spsel(val: u64) -> u64 {
+    let ret: u64;
+    asm!("mrs {0}, spsel", out(reg) ret);
     ret
 }
