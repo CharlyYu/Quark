@@ -35,7 +35,15 @@ pub fn SwapGs() {
 }
 
 pub fn GetVcpuId() -> usize {
-    return 0;
+    let ret: u64;
+    unsafe {
+        asm!("\
+        mrs {0}, tpidr_el1
+        ldr {1}, [{0}, #16]",
+        out(reg) _,
+        out(reg) ret);
+    };
+    return ret as usize;
 }
 
 #[inline]
@@ -98,19 +106,31 @@ pub fn IRet(kernelRsp: u64) -> ! {
 }
 
 #[inline]
-pub fn GetRsp() -> u64 {
-    let rsp: u64;
+pub fn GetCurrentKernelSp() -> u64 {
+    // we can only mrs sp_el1 in EL2 and EL3
+    // so we can only get sp_el1 by move
+    let ret: u64;
     unsafe {
-        asm!("mov {0}, sp", out(reg) rsp);
-    };
-    return rsp;
+        asm!("\
+        mrs {1}, spsel
+        msr spsel, #1
+        mov {0}, sp
+        msr spsel, {1}
+        ",
+        out(reg) ret,
+        out(reg) _);
+    }
+    ret
+}
+
+#[inline]
+pub fn GetCurrentUserSp() -> u64 {
+    unsafe { return sp_el0(); }
 }
 
 #[inline]
 pub fn Clflush(addr: u64) {
 }
-
-
 
 // HostID executes a native CPUID instruction.
 // return (ax, bx, cx, dx)
@@ -408,4 +428,23 @@ pub fn xgetbv() -> u64 {
 //    };
     let val = ((val_h as u64) << 32) | ((val_l as u64) & 0xffff);
     return val;
+}
+
+#[inline]
+pub unsafe fn sp_el0() -> u64 {
+    let ret: u64;
+    asm!("mrs {0}, sp_el0", out(reg) ret);
+    ret
+}
+
+#[inline]
+pub unsafe fn sp_el0_write(val: u64) {
+    asm!("msr sp_el0, {0}", in(reg) val);
+}
+
+#[inline]
+pub unsafe fn spsel(val: u64) -> u64 {
+    let ret: u64;
+    asm!("mrs {0}, spsel", out(reg) ret);
+    ret
 }
