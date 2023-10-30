@@ -132,6 +132,7 @@ impl PageBlockAlloc {
             self.freeCount
                 .fetch_add(BLOCK_PAGE_COUNT - 1, Ordering::Release);
             let (addr, _) = newpb.Alloc();
+            debug!("pageblock alloc: {:x}", addr);
             al.Insert(newpb);
             return Ok(addr);
         } else {
@@ -412,7 +413,7 @@ impl PageBlock {
     pub fn AllocPageBlock() -> Result<&'static mut Self> {
         let alloc = AlignedAllocator::New(BLOCK_SIZE as _, BLOCK_SIZE as _);
         let addr = alloc.Allocate()?;
-
+        debug!("pageblock: {:x}", addr);
         let ret = Self::FromAddr(addr);
         ret.Init();
         return Ok(ret);

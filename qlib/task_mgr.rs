@@ -51,7 +51,7 @@ impl TaskId {
 
     #[inline]
     pub fn Queue(&self) -> u64 {
-        return self.Context().queueId.load(Ordering::Relaxed) as u64;
+        return self.GetTask().QueueId() as u64;
     }
 }
 
@@ -73,16 +73,7 @@ pub struct Context {
     pub rbp: u64,
     pub rdi: u64,
 
-    pub ready: AtomicU64,
     pub fs: u64,
-    pub savefpsate: bool,
-    //
-    // ARM PORT
-    //
-    pub archfpstate: Option<Box<ArchFPState>>,
-    // job queue id
-    pub queueId: AtomicUsize,
-    pub links: Links,
 }
 
 impl Context {
@@ -97,22 +88,8 @@ impl Context {
             rbp: 0,
             rdi: 0,
 
-            ready: AtomicU64::new(1),
-
             fs: 0,
-            savefpsate: false,
-            archfpstate: Some(Default::default()),
-            queueId: AtomicUsize::new(0),
-            links: Links::default(),
         };
-    }
-
-    pub fn Ready(&self) -> u64 {
-        return self.ready.load(Ordering::Acquire);
-    }
-
-    pub fn SetReady(&self, val: u64) {
-        return self.ready.store(val, Ordering::SeqCst);
     }
 }
 
@@ -347,7 +324,7 @@ impl TaskQueue {
                     match data.queue.pop_front() {
                         None => panic!("TaskQueue none task"),
                         Some(taskId) => {
-                            if taskId.GetTask().context.Ready() != 0 {
+                            if taskId.GetTask().Ready() != 0 {
                                 self.queueSize.fetch_sub(1, Ordering::Release);
                                 return Some(taskId);
                             }

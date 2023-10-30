@@ -16,6 +16,8 @@ use alloc::boxed::Box;
 use alloc::string::ToString;
 use alloc::sync::Arc;
 use core::ptr;
+use core::sync::atomic::AtomicU64;
+use core::sync::atomic::AtomicUsize;
 
 use super::super::super::super::kernel_def::*;
 use super::super::super::common::*;
@@ -448,9 +450,7 @@ impl Task {
             cTask.CopyOutObjManual(&pid, cTid)?;
         }
 
-        if opts.SetTLS {
-            cTask.context.fs = tls;
-        }
+        cTask.context.set_tls(tls);
 
         taskMgr::NewTask(TaskId::New(cTask.taskId));
 
@@ -526,6 +526,10 @@ impl Task {
                     sched: sched,
                     exiting: false,
                     perfcounters: None, //Some(THREAD_COUNTS.lock().NewCounters()),
+                    savefpsate: false,
+                    archfpstate:  Some(Default::default()),
+                    ready: AtomicU64::new(1),
+                    queueId: AtomicUsize::new(0),
                     guard: Guard::default(),
                 },
             );
@@ -658,13 +662,13 @@ pub fn CreateCloneTask(fromTask: &Task, toTask: &mut Task, userSp: u64) {
             to -= 8;
         }
 
-        toTask.context.SetReady(1);
-        toTask.context.fs = fromTask.context.fs;
-        toTask.context.rsp = toTask.GetPtRegs() as *const _ as u64 - 8;
-        toTask.context.rdi = userSp;
-        toTask.context.savefpsate = true;
-        toTask.context.archfpstate = Some(Box::new(
-            fromTask.context.archfpstate.as_ref().unwrap().Fork(),
+        toTask.SetReady(1);
+        toTask.context.set_tls(fromTask.context.get_tls());
+        toTask.context.set_sp(toTask.GetPtRegs() as *const _ as u64 - 8);
+        toTask.context.set_para(userSp);
+        toTask.savefpsate = true;
+        toTask.archfpstate = Some(Box::new(
+            fromTask.archfpstate.as_ref().unwrap().Fork(),
         ));
         toPtRegs.rax = 0;
         toPtRegs.rsp = userSp;

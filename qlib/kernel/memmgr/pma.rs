@@ -72,7 +72,7 @@ impl RefMgr for PageMgr {
 impl Allocator for PageMgr {
     fn AllocPage(&self, incrRef: bool) -> Result<u64> {
         let addr = self.pagepool.AllocPage(incrRef)?;
-        //error!("PageMgr allocpage ... incrRef is {}, addr is {:x}", incrRef, addr);
+        error!("PageMgr allocpage ... incrRef is {}, addr is {:x}", incrRef, addr);
         return Ok(addr);
     }
 }
@@ -170,7 +170,8 @@ impl PageTables {
 
     pub fn InitVsyscall(&self, phyAddrs: Arc<Vec<u64>> /*4 pages*/) {
         let vaddr = 0xffffffffff600000;
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let p4Idx = VirtAddr::new(vaddr).p4_index();
             let p3Idx = VirtAddr::new(vaddr).p3_index();
@@ -224,18 +225,28 @@ impl PageTables {
 
     pub fn NewWithKernelPageTables(&self, pagePool: &PageMgr) -> Result<Self> {
         let ret = Self::New(pagePool)?;
-
+        debug!("root: {:x}", ret.GetRoot());
         unsafe {
-            let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+            let root = self.GetRoot();
+            let pt: *mut PageTable = root as *mut PageTable;
+            debug!("32");
+            debug!("===========pt: {:x}", pt as u64);
             let pgdEntry = &(*pt)[0];
+            debug!("entry: {:x}", pgdEntry as *const _ as u64);
             if pgdEntry.is_unused() {
+                debug!("41");
                 return Err(Error::AddressNotMap(0));
             }
+            debug!("33");
             let pudTbl = pgdEntry.addr().as_u64() as *const PageTable;
-
-            let nPt: *mut PageTable = ret.GetRoot() as *mut PageTable;
+            debug!("34");
+            let nRoot = ret.GetRoot();
+            let nPt: *mut PageTable = nRoot as *mut PageTable;
+            debug!("35");
             let nPgdEntry = &mut (*nPt)[0];
+            debug!("36");
             let nPudTbl = pagePool.AllocPage(true)? as *mut PageTable;
+            debug!("37");
             #[cfg(target_arch = "x86_64")]
             nPgdEntry.set_addr(
                 PhysAddr::new(nPudTbl as u64),
@@ -255,14 +266,14 @@ impl PageTables {
                     *(&(*pudTbl)[i] as *const _ as *const u64);
             }
         }
-
+        debug!("33");
         ret.MapPage(
             Addr(MemoryDef::KVM_IOEVENTFD_BASEADDR),
             Addr(MemoryDef::KVM_IOEVENTFD_BASEADDR),
             PageOpts::Kernel().Val(),
             pagePool,
         )?;
-
+        debug!("34");
         #[cfg(target_arch = "x86_64")]
         {
             let vsyscallPages = pagePool.VsyscallPages();
@@ -382,7 +393,8 @@ impl PageTables {
     }
 
     pub fn PrintZero(&self) {
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
 
         let pgdEntry = unsafe { &(*pt)[0] };
 
@@ -409,8 +421,8 @@ impl PageTables {
     pub fn UnmapAll(&self) -> Result<()> {
         self.Unmap(MemoryDef::PAGE_SIZE, MemoryDef::PHY_LOWER_ADDR, &*PAGE_MGR)?;
         self.Unmap(MemoryDef::PHY_UPPER_ADDR, MemoryDef::LOWER_TOP, &*PAGE_MGR)?;
-
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
 
         let pgdEntry = unsafe { &(*pt)[0] };
 

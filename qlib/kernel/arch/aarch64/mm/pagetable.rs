@@ -213,6 +213,9 @@ impl Index<usize> for PageTable {
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
+        unsafe {
+            debug!("index: {}, entries[1]: {:x}, entries[2]: {:x}", index, &self.entries[1] as *const _ as u64, &self.entries[2] as *const _ as u64);
+        }
         &self.entries[index]
     }
 }

@@ -222,10 +222,11 @@ impl VcpuAllocator {
         let ret;
         if idx < self.bufs.len() && !self.bufs[idx].IsEmpty() {
             ret = self.bufs[idx].Pop();
+            raw!(0x411, ret, layout.size() as u64, layout.align() as u64);
         } else {
             unsafe { ret = GLOBAL_ALLOCATOR.alloc(layout) as u64 };
+            raw!(0x412, ret, layout.size() as u64, layout.align() as u64);
         }
-
         return ret as *mut u8;
     }
 

@@ -424,7 +424,7 @@ impl VirtualMachine {
 
         #[cfg(target_arch = "aarch64")]
         let kvi = get_kvm_vcpu_init(&vm_fd)?;
-        info!("kvm_vcpu_init {:?}", kvi);
+        
         let mut vcpus = Vec::with_capacity(cpuCount);
         for i in 0..cpuCount
         /*args.NumCPU*/

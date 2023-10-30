@@ -20,8 +20,11 @@ use core::mem;
 use core::ops::Deref;
 use core::ptr;
 use core::sync::atomic::Ordering;
+use core::sync::atomic::AtomicU64;
+use core::sync::atomic::AtomicUsize;
 
 use super::arch::__arch::arch_def::ArchFPState;
+use super::arch::__arch::arch_def::Context;
 use super::super::super::kernel_def::*;
 use super::super::auth::*;
 use super::super::common::*;
@@ -193,7 +196,11 @@ pub struct Task {
     pub exiting: bool,
 
     pub perfcounters: Option<Arc<Counters>>,
-
+    pub savefpsate: bool,
+    pub archfpstate: Option<Box<ArchFPState>>,
+    pub ready: AtomicU64,
+    // job queue id
+    pub queueId: AtomicUsize,
     pub guard: Guard,
     //check whether the stack overflow
 }
@@ -243,23 +250,26 @@ impl Task {
     }
 
     pub fn SaveFp(&mut self) {
-        self.context.archfpstate.as_ref().unwrap().SaveFp();
-        self.context.savefpsate = true;
+        if !self.savefpsate {
+            self.archfpstate.as_ref().unwrap().SaveFp();
+            self.savefpsate = true;
+        }
+        
     }
 
     pub fn RestoreFp(&mut self) {
-        if self.context.savefpsate {
-            self.context.archfpstate.as_ref().unwrap().RestoreFp();
-            self.context.savefpsate = false;
+        if self.savefpsate {
+            self.archfpstate.as_ref().unwrap().RestoreFp();
+            self.savefpsate = false;
         }
     }
 
     pub fn QueueId(&self) -> usize {
-        return self.context.queueId.load(Ordering::Acquire);
+        return self.queueId.load(Ordering::Acquire);
     }
 
     pub fn SetQueueId(&self, queueId: usize) {
-        return self.context.queueId.store(queueId, Ordering::Release);
+        return self.queueId.store(queueId, Ordering::Release);
     }
 
     #[inline(always)]
@@ -313,6 +323,10 @@ impl Task {
             sched: TaskSchedInfo::default(),
             exiting: false,
             perfcounters: None,
+            savefpsate: false,
+            archfpstate:  Some(Default::default()),
+            ready: AtomicU64::new(1),
+            queueId: AtomicUsize::new(0),
             guard: Guard::default(),
         };
 
@@ -617,29 +631,37 @@ impl Task {
     pub fn Create(runFnAddr: u64, para: *const u8, kernel: bool) -> &'static mut Self {
         //let s_ptr = pa.Alloc(DEFAULT_STACK_PAGES).unwrap() as *mut u8;
         let s_ptr = KERNEL_STACK_ALLOCATOR.Allocate().unwrap() as *mut u8;
-
+        debug!("1");
         let size = DEFAULT_STACK_SIZE;
 
         let mut ctx = Context::New();
-
+        debug!("2");
         unsafe {
             //ptr::write(s_ptr.offset((size - 24) as isize) as *mut u64, guard as u64);
             ptr::write(s_ptr.offset((size - 32) as isize) as *mut u64, runFnAddr);
-            ctx.rsp = s_ptr.offset((size - 32) as isize) as u64;
-            ctx.rdi = para as u64;
+            ctx.set_sp(s_ptr.offset((size - 32) as isize) as u64);
+            ctx.set_para(para as u64);
         }
-
+        debug!("3");
         //let ioUsage = DUMMY_TASK.read().ioUsage.clone();
         let ioUsage = DUMMY_TASK.read().ioUsage.clone();
+        debug!("4");
         let perfcounters = Some(THREAD_COUNTS.lock().NewCounters());
+        debug!("5");
         let futexMgr = FUTEX_MGR.Fork();
+        debug!("6");
         let blocker = Blocker::New(s_ptr as u64);
+        debug!("7");
         let mm = MemoryManager::Init(kernel);
+        debug!("8");
         let creds = Credentials::default();
+        debug!("9");
         let userns = creds.lock().UserNamespace.clone();
+        debug!("10");
         let utsns = UTSNamespace::New("".to_string(), "".to_string(), userns.clone());
+        debug!("11");
         let ipcns = IPCNamespace::New(&userns);
-
+        debug!("12");
         //put Task on the task as Linux
         let taskPtr = s_ptr as *mut Task;
         unsafe {
@@ -669,6 +691,10 @@ impl Task {
                     sched: TaskSchedInfo::default(),
                     exiting: false,
                     perfcounters: perfcounters,
+                    savefpsate: false,
+                    archfpstate:  Some(Default::default()),
+                    ready: AtomicU64::new(1),
+                    queueId: AtomicUsize::new(0),
                     guard: Guard::default(),
                 },
             );
@@ -772,6 +798,10 @@ impl Task {
                     sched: TaskSchedInfo::default(),
                     exiting: false,
                     perfcounters: None,
+                    savefpsate: false,
+                    archfpstate:  Some(Default::default()),
+                    ready: AtomicU64::new(1),
+                    queueId: AtomicUsize::new(0),
                     guard: Guard::default(),
                 },
             );
@@ -797,9 +827,16 @@ impl Task {
         KERNEL_PAGETABLE.SwitchTo();
     }
 
+    #[cfg(target_arch="x86_64")]
     #[inline]
-    pub fn SetFS(&self) {
-        SetFs(self.context.fs);
+    pub fn SetTLS(&self) {
+        SetTLS(self.context.fs);
+    }
+
+    #[cfg(target_arch="aarch64")]
+    #[inline]
+    pub fn SetTLS(&self) {
+        SetTLS(self.context.tls);
     }
 
     #[inline]
@@ -877,5 +914,13 @@ impl Task {
         }
 
         return ret;
+    }
+
+    pub fn Ready(&self) -> u64 {
+        return self.ready.load(Ordering::Acquire);
+    }
+
+    pub fn SetReady(&self, val: u64) {
+        return self.ready.store(val, Ordering::SeqCst);
     }
 }

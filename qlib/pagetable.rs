@@ -229,11 +229,10 @@ impl PageTables {
         let p3Idx = vaddr.p3_index();
         let p2Idx = vaddr.p2_index();
         let p1Idx = vaddr.p1_index();
-
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
 
         unsafe {
-            info!("pt1: {:x}", self.GetRoot());
             let pgdEntry = &(*pt)[p4Idx];
             if pgdEntry.is_unused() {
                 return;
@@ -271,8 +270,8 @@ impl PageTables {
         let p3Idx = vaddr.p3_index();
         let p2Idx = vaddr.p2_index();
         let p1Idx = vaddr.p1_index();
-
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
 
         unsafe {
             let pgdEntry = &(*pt)[p4Idx];
@@ -331,7 +330,8 @@ impl PageTables {
 
     pub fn MapVsyscall(&self, phyAddrs: Arc<Vec<u64>> /*4 pages*/) {
         let vaddr = 0xffffffffff600000;
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let p4Idx = VirtAddr::new(vaddr).p4_index();
             let pgdEntry = &mut (*pt)[p4Idx];
@@ -357,7 +357,8 @@ impl PageTables {
         let mut res = false;
 
         let vaddr = Addr(vaddr.0 & !(PAGE_SIZE - 1));
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let p4Idx = VirtAddr::new(vaddr.0).p4_index();
             let p3Idx = VirtAddr::new(vaddr.0).p3_index();
@@ -560,7 +561,8 @@ impl PageTables {
         let mut res = false;
 
         let mut curAddr = start;
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let mut p4Idx = VirtAddr::new(curAddr.0).p4_index();
             let mut p3Idx = VirtAddr::new(curAddr.0).p3_index();
@@ -684,7 +686,8 @@ impl PageTables {
         Addr(start).PageAligned()?;
         Addr(end).PageAligned()?;
         let mut start = start;
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let mut p4Idx: u16 = VirtAddr::new(start).p4_index().into();
             while start < end && p4Idx < MemoryDef::ENTRY_COUNT {
@@ -837,7 +840,8 @@ impl PageTables {
         pages: &mut BTreeSet<u64>,
     ) -> Result<()> {
         //let mut curAddr = start;
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let mut p4Idx = VirtAddr::new(start.0).p4_index();
             let mut p3Idx = VirtAddr::new(start.0).p3_index();
@@ -936,7 +940,8 @@ impl PageTables {
         start.PageAligned()?;
         end.PageAligned()?;
         //let mut curAddr = start;
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let mut p4Idx = VirtAddr::new(start.0).p4_index();
             let mut p3Idx = VirtAddr::new(start.0).p3_index();
@@ -1156,7 +1161,8 @@ impl PageTables {
     // ret: >0: the swapped out page addr, 0: the page is missing
     pub fn SwapInPage(&self, vaddr: Addr) -> Result<u64> {
         let vaddr = Addr(vaddr.0 & !(PAGE_SIZE - 1));
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let p4Idx = VirtAddr::new(vaddr.0).p4_index();
             let p3Idx = VirtAddr::new(vaddr.0).p3_index();
@@ -1316,7 +1322,8 @@ impl PageTables {
 
         //info!("mapCanonical virtual start is {:x}, len is {:x}, phystart is {:x}", start.0, end.0 - start.0, phyAddr.0);
         let mut curAddr = start;
-        let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
+        let root = self.GetRoot();
+        let pt: *mut PageTable = root as *mut PageTable;
         unsafe {
             let mut p4Idx = VirtAddr::new(curAddr.0).p4_index();
             let mut p3Idx = VirtAddr::new(curAddr.0).p3_index();

@@ -89,6 +89,8 @@ impl HostAllocator {
 
         let heapStart = self.listHeapAddr.load(Ordering::Relaxed);
         let heapEnd = heapStart + MemoryDef::HEAP_SIZE as u64;
+        raw!(0x500, heapStart, heapEnd, addr);
+        //debug!("heapStart: {}, heapEnd: {}, addr: {}", heapStart, heapEnd, addr);
         *self.Allocator() = ListAllocator::New(heapStart as _, heapEnd);
 
         let ioHeapEnd = heapStart + MemoryDef::HEAP_SIZE as u64 + MemoryDef::IO_HEAP_SIZE;
@@ -97,7 +99,7 @@ impl HostAllocator {
         // reserve first 4KB gor the listAllocator
         let size = core::mem::size_of::<ListAllocator>();
         self.Allocator().Add(addr as usize + size, MemoryDef::HEAP_SIZE as usize - size);
-        self.Allocator().Add(addr as usize + MemoryDef::HEAP_SIZE as usize + size, MemoryDef::IO_HEAP_SIZE as usize - size);
+        self.IOAllocator().Add(addr as usize + MemoryDef::HEAP_SIZE as usize + size, MemoryDef::IO_HEAP_SIZE as usize - size);
         self.initialized.store(true, Ordering::Relaxed);
     }
 

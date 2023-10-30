@@ -210,7 +210,9 @@ impl MemoryManagerWeak {
 
 impl MemoryManager {
     pub fn Init(kernel: bool) -> Self {
+        debug!("11");
         let mut vmas = AreaSet::New(0, MemoryDef::LOWER_TOP);
+        debug!("12");
         let vma = VMA {
             mappable: MMappable::None,
             offset: 0,
@@ -228,9 +230,9 @@ impl MemoryManager {
             numaPolicy: 0,
             numaNodemask: 0,
         };
-
+        debug!("13");
         let gap = vmas.FindGap(MemoryDef::PHY_LOWER_ADDR);
-
+        debug!("14");
         // kernel memory
         vmas.Insert(
             &gap,
@@ -240,7 +242,7 @@ impl MemoryManager {
             ),
             vma.clone(),
         );
-
+        debug!("15");
         let mapping = MMMapping {
             vmas: vmas,
             brkInfo: BrkInfo::default(),
@@ -248,7 +250,7 @@ impl MemoryManager {
             lockedAS: 0,
             defMLockMode: MLockMode::MlockNone,
         };
-
+        debug!("16");
         let metadata = MMMetadata {
             argv: Range::default(),
             envv: Range::default(),
@@ -256,20 +258,22 @@ impl MemoryManager {
             executable: None,
             dumpability: NOT_DUMPABLE,
         };
-
+        debug!("17");
         let pt = if kernel {
+            debug!("18");
             KERNEL_PAGETABLE.Clone()
         } else {
+            debug!("19");
             KERNEL_PAGETABLE.Fork(&*PAGE_MGR).unwrap()
         };
-
+        debug!("20");
         let pagetable = MMPagetable {
             pt: pt,
             sharedLoadsOffset: MemoryDef::SHARED_START,
             curRSS: 0,
             maxRSS: 0,
         };
-
+        debug!("21");
         let layout = MmapLayout {
             MinAddr: MemoryDef::VIR_MMAP_START,
             MaxAddr: MemoryDef::LOWER_TOP,
@@ -277,7 +281,7 @@ impl MemoryManager {
             TopDownBase: MemoryDef::LOWER_TOP,
             ..Default::default()
         };
-
+        debug!("22");
         let internal = MemoryManagerInternal {
             uid: NewUID(),
             inited: true,
@@ -292,9 +296,9 @@ impl MemoryManager {
             aioManager: AIOManager::default(),
             membarrierPrivateEnabled: AtomicBool::new(false),
         };
-
+        debug!("23");
         let mm = Self(Arc::new(internal));
-
+        debug!("24");
         SHARESPACE.hiberMgr.AddMemMgr(&mm);
 
         return mm;

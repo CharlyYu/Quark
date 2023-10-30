@@ -323,3 +323,57 @@ impl State {
         };
     }
 }
+
+pub type Context = X86Context;
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct X86Context {
+    pub rsp: u64,
+    pub r15: u64,
+    pub r14: u64,
+    pub r13: u64,
+    pub r12: u64,
+    pub rbx: u64,
+    pub rbp: u64,
+    pub rdi: u64,
+
+    pub fs: u64,
+}
+
+impl X86Context {
+    pub fn New() -> Self {
+        return Self {
+            rsp: 0,
+            r15: 0,
+            r14: 0,
+            r13: 0,
+            r12: 0,
+            rbx: 0,
+            rbp: 0,
+            rdi: 0,
+
+            fs: 0,
+        };
+    }
+
+    pub fn set_tls(&mut self, tls: u64) {
+        self.fs = tls;
+    }
+
+    pub fn get_tls(&mut self) -> u64 {
+        self.fs
+    }
+
+    pub fn set_sp(&mut self, sp: u64) {
+        self.rsp = sp;
+    }
+
+    pub fn get_sp(&mut self) -> u64 {
+        self.rsp
+    }
+
+    pub fn set_para(&mut self, para: u64) {
+        self.rdi = para;
+    }
+}
