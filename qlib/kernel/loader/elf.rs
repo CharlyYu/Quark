@@ -41,6 +41,7 @@ pub const LINUX_OS: OS = 0;
 
 pub type Arch = i32;
 pub const AMD64: Arch = 0;
+pub const ARM64: Arch = 1;
 
 // elfInfo contains the metadata needed to load an ELF binary.
 pub struct ElfHeadersInfo {
@@ -117,10 +118,14 @@ pub fn ParseHeader(task: &mut Task, file: &File) -> Result<ElfHeadersInfo> {
             }
         }
     }
-
+    let arch = if cfg!(target_arch = "aarch64") {
+        ARM64
+    } else {
+        AMD64
+    };
     return Ok(ElfHeadersInfo {
         os: LINUX_OS,
-        arch: AMD64,
+        arch: arch,
         entry: entry,
         phdrAddr: phdrAddr,
         phdrSize: phdrSize as usize,
