@@ -1454,7 +1454,11 @@ impl PageTables {
             end,
             |entry, virtualAddr| {
                 self.HandlingSwapInPage(virtualAddr, entry);
-                entry.set_flags(flags);
+                #[cfg(target_arch = "x86_64")]
+                let flags_arch = flags;
+                #[cfg(target_arch = "aarch64")]
+                let flags_arch = flags | PageTableFlags::PAGE;
+                entry.set_flags(flags_arch);
                 Invlpg(virtualAddr);
             },
             failFast,
