@@ -711,8 +711,8 @@ fn panic(info: &PanicInfo) -> ! {
         true
     });*/
 
-    //self::Kernel::HostSpace::Panic(&format!("get panic: {:?}", info));
-    //self::Kernel::HostSpace::Panic("get panic ...");
+    self::Kernel::HostSpace::Panic(&format!("get panic: {:?}", info));
+    self::Kernel::HostSpace::Panic("get panic ...");
     loop {}
 }
 
