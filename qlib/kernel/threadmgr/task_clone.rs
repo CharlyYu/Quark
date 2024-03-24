@@ -231,10 +231,13 @@ impl CloneOptions {
 
 impl Thread {
     pub fn Clone(&self, opts: &CloneOptions, stackAddr: u64) -> Result<Self> {
+
+        debug!("===================12");
         let pidns = self.PIDNamespace();
         let ts = pidns.Owner();
         let _wl = ts.WriteLock();
 
+        debug!("===================13");
         let t = self.lock();
         let creds = t.creds.clone();
         let mut userns = creds.lock().UserNamespace.clone();
@@ -247,6 +250,7 @@ impl Thread {
             userns = creds.NewChildUserNamespace()?;
         }
 
+        debug!("===================14");
         if opts.sharingOption.NewPIDNamespace
             || opts.sharingOption.NewNetworkNamespace
             || opts.sharingOption.NewUTSNamespace
@@ -255,23 +259,27 @@ impl Thread {
             return Err(Error::SysError(SysErr::EPERM));
         }
 
+        debug!("===================15");
         let mut utsns = t.utsns.clone();
         if opts.sharingOption.NewUTSNamespace {
             let tmp = utsns.Fork(&userns);
             utsns = tmp;
         }
 
+        debug!("===================16");
         let mut ipcns = t.ipcns.clone();
         if opts.sharingOption.NewIPCNamespace {
             ipcns = IPCNamespace::New(&userns);
         }
 
+        debug!("===================17");
         let mut memoryMgr = t.memoryMgr.clone();
         if opts.sharingOption.NewAddressSpace {
             let newMM = memoryMgr.Fork()?;
             memoryMgr = newMM;
         }
 
+        debug!("===================18");
         let vforkParent = if opts.Vfork { Some(self.clone()) } else { None };
 
         let mut fsc = t.fsc.clone();
@@ -280,6 +288,7 @@ impl Thread {
             fsc = temp;
         }
 
+        debug!("===================19");
         let mut fdTbl = t.fdTbl.clone();
         if opts.sharingOption.NewFiles {
             let newFDTbl = fdTbl.Fork(i32::MAX);
@@ -296,6 +305,7 @@ impl Thread {
             //pidns = pidns.NewChild(&userns);
         }
 
+        debug!("===================20");
         let mut tg = t.tg.clone();
         if opts.sharingOption.NewThreadGroup {
             let mut sh = tg.lock().signalHandlers.clone();
@@ -316,6 +326,7 @@ impl Thread {
             );
         }
 
+        debug!("===================21");
         let mut cfg = TaskConfig {
             TaskId: stackAddr,
             Kernel: t.k.clone(),
@@ -346,6 +357,7 @@ impl Thread {
             cfg.NetworkNamespaced = true;
         }
 
+        debug!("===================22");
         let pidns = tg.PIDNamespace();
         let ts = pidns.lock().owner.clone();
 
@@ -354,6 +366,7 @@ impl Thread {
         let kernel = self.lock().k.clone();
         let nt = ts.NewTask(&cfg, false, &kernel)?;
 
+        debug!("===================23");
         nt.lock().name = name;
 
         if userns != creds.lock().UserNamespace.clone() {
@@ -361,11 +374,13 @@ impl Thread {
                 .expect("Task.Clone: SetUserNamespace failed: ")
         }
 
+        debug!("===================24");
         if opts.Vfork {
             nt.lock().vforkParent = vforkParent;
             self.MaybeBeginVforkStop(&nt);
         }
 
+        debug!("===================25");
         return Ok(nt);
     }
 
@@ -469,11 +484,13 @@ impl Task {
 
         let task = Task::Current();
         let thread = task.Thread();
-
+        debug!("===================1");
         let nt = thread.Clone(&opts, s_ptr as u64)?;
 
+        debug!("===================2");
         unsafe {
             let mm = nt.lock().memoryMgr.clone();
+            debug!("===================3");
             let creds = nt.lock().creds.clone();
             let utsns = nt.lock().utsns.clone();
             let ipcns = nt.lock().ipcns.clone();
@@ -482,6 +499,7 @@ impl Task {
             let blocker = nt.lock().blocker.clone();
             let sched = nt.lock().sched.clone();
 
+            debug!("===================4");
             let tg = nt.lock().tg.clone();
             tg.lock().liveThreads.Add(1);
             let pidns = tg.PIDNamespace();
@@ -493,6 +511,7 @@ impl Task {
                 task.futexMgr.clone()
             };
 
+            debug!("===================5");
             cPid = ntid;
 
             let signalStack = if opts.sharingOption.NewAddressSpace || opts.Vfork {
@@ -503,6 +522,7 @@ impl Task {
 
             let ioUsage = nt.lock().ioUsage.clone();
 
+            debug!("===================6");
             ptr::write_volatile(
                 taskPtr,
                 Self {
@@ -656,18 +676,21 @@ pub fn CreateCloneTask(fromTask: &Task, toTask: &mut Task, userSp: u64) {
 
     let mut to = toTask.GetKernelSp();
     let toPtRegs = toTask.GetPtRegs();
-
+    debug!("==============userSp: {:x}, fromPtRegs: {:x?}", userSp, fromTask.GetPtRegs());
     unsafe {
         while from >= fromSp {
             *(to as *mut u64) = *(from as *const u64);
             from -= 8;
             to -= 8;
         }
-
+        debug!("============from: {:x?}, to: {:x?}", fromTask.GetPtRegs(), toPtRegs);
         toTask.SetReady(1);
         toTask.context.set_tls(fromTask.context.get_tls());
         // TODO, what is this?
+        //#[cfg(target_arch = "x86_64")]
         toTask.context.set_sp(toTask.GetPtRegs() as *const _ as u64 - 8);
+        //#[cfg(target_arch = "aarch64")]
+        //toTask.context.set_sp(toTask.GetPtRegs() as *const _ as u64 - 8);
         toTask.context.set_para(userSp);
         toTask.savefpsate = true;
         toTask.archfpstate = Some(Box::new(
@@ -679,10 +702,15 @@ pub fn CreateCloneTask(fromTask: &Task, toTask: &mut Task, userSp: u64) {
         {
             toPtRegs.rax = 0;
         }
+        #[cfg(target_arch = "aarch64")]
+        {
+            toPtRegs.regs[0] = 0;
+            toTask.context.set_pc(child_clone as u64);
+        }
         toPtRegs.set_stack_pointer(userSp);
 
-
         toTask.context.place_on_stack(child_clone as u64);
+        debug!("======after set to: {:x?}", toPtRegs);
     }
 }
 

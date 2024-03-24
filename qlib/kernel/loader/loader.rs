@@ -169,6 +169,7 @@ pub fn LoadExecutable(
     let mut argv = tmp;
 
     for _i in 0..MAX_LOADER_ATTEMPTS {
+        error!("=======open {}", filename);
         let (file, executable) = OpenPath(task, &filename, 40)?;
         defer!(file
             .Dirent
@@ -206,7 +207,7 @@ pub fn LoadExecutable(
                 Ok((p, a)) => (p, a),
             };
 
-            //error!("script is {} {:?}", &newpath, &newargv);
+            error!("script is {} {:?}", &newpath, &newargv);
 
             filename = newpath;
             argv = newargv;

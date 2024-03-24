@@ -31,7 +31,7 @@ use crate::qlib::pagetable::PageTables;
 use crate::qlib::kernel::arch::__arch::mm::pagetable::{PageTableEntry, PageTableFlags};
 
 
-use crate::{MainRun, SHARESPACE, panic};
+use crate::{panic, read_user_opcode, MainRun, SHARESPACE};
 
 #[repr(u64)]
 enum PageFaultErrorFlags {
@@ -134,7 +134,6 @@ pub fn ReturnToApp(pt: &mut PtRegs) -> ! {
     // TODO Implement
     //
     panic!("VM: PF-handled - ReturnToApp is not implemented");
-    SyscallRet(kernelRsp);
 }
 
 pub fn PageFaultHandler(ptRegs: &mut PtRegs, fault_address: u64,
@@ -319,6 +318,7 @@ pub fn PageFaultHandler(ptRegs: &mut PtRegs, fault_address: u64,
                 //PerfGoto(PerfType::User);
                 currTask.AccountTaskEnter(SchedState::RunningApp);
             }
+
             CPULocal::Myself().SetMode(VcpuMode::User);
             currTask.mm.HandleTlbShootdown();
             return;
@@ -353,12 +353,20 @@ pub fn PageFaultHandler(ptRegs: &mut PtRegs, fault_address: u64,
                     }
             }
         }
-
         CPULocal::Myself().SetMode(VcpuMode::User);
         currTask.mm.HandleTlbShootdown();
         return;
     }
-
+    {
+        let _ml = currTask.mm.MappingWriteLock();
+        let map = currTask.mm.GetSnapshotLocked(currTask, false);
+        error!("VM: The map is {}", &map);
+        let pageAddr = Addr(ptRegs.pc).RoundDown().unwrap().0;
+        let (phyAddr, accessType) = currTask.mm
+            .VirtualToPhyLocked(pageAddr)
+            .expect(&format!("addr is {:x}", pageAddr));
+        unsafe {error!("pc: {:x?}, pageAddr: {:x}, phyAddr: {:x}, accessType: {}, ptRegs: {:x?}", read_user_opcode(ptRegs.pc), pageAddr, phyAddr, accessType.String(), ptRegs)};
+    }
     HandleFault(currTask, fromUser, error_code, fault_address,
                 ptRegs, signal);
 }

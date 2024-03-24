@@ -15,10 +15,12 @@
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::arch::asm;
+use core::slice;
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::AtomicU64;
 use core::sync::atomic::Ordering;
 
+use crate::kernel_def::addr::Addr;
 use crate::qlib::fileinfo::*;
 
 use super::qlib::kernel::asm::*;
@@ -216,6 +218,7 @@ pub fn switch(from: TaskId, to: TaskId) {
     let toCtx = to.GetTask();
 
     if !SHARESPACE.config.read().KernelPagetable {
+        info!("switch pagetable for {:x}", toCtx.Addr());
         toCtx.SwitchPageTable();
     }
     toCtx.SetTLS();
@@ -274,7 +277,7 @@ pub fn Invlpg(addr: u64) {
         unsafe {
             asm!("
             dsb ishst
-            tlbi vaae1is, {}
+            tlbi vale1is, {}
             dsb ish
             isb
         ", in(reg) (addr >> MemoryDef::PAGE_SHIFT));
@@ -396,19 +399,44 @@ impl HostSpace {
 
 #[inline]
 pub fn child_clone(userSp: u64) {
+    debug!("=========child clone: {:x}", userSp);
     let currTask = Task::Current();
     CPULocal::SetUserStack(userSp);
     CPULocal::SetKernelStack(currTask.GetKernelSp());
 
-    currTask.AccountTaskEnter(SchedState::RunningApp);
-    let pt = currTask.GetPtRegs();
+    let stack_bottom = Addr(userSp).RoundUp().unwrap().0;
+    let len = (stack_bottom - userSp) as usize;
+    let ptr = userSp as *const u8;
+    let buf = unsafe { slice::from_raw_parts(ptr, len) };
+    error!("After clone, the sp is {:x}", userSp);
+    let mut start:usize = 0; 
+    loop {
+        let mut end = start + 100;
+        if end > len {
+            end = len;
+        }
+        error!("buffer {}-{}: {:x?}", start, end, &buf[start..end]);
+        if end == len {
+            break;
+        }
+        start = end;
+    }
 
-    let kernalRsp = pt as *const _ as u64;
+    currTask.AccountTaskEnter(SchedState::RunningApp);
+    let pt: &mut kernel::SignalDef::PtRegs = currTask.GetPtRegs();
+    debug!("==========PtRegs: {:x?}", pt);
+
+    let kernelRsp = pt as *const _ as u64;
     CPULocal::Myself().SetEnterAppTimestamp(TSC.Rdtsc());
     //currTask.mm.VcpuEnter();
     CPULocal::Myself().SetMode(VcpuMode::User);
     currTask.mm.HandleTlbShootdown();
-    SyscallRet(kernalRsp)
+    #[cfg(target_arch = "x86_64")]
+    SyscallRet(kernelRsp);
+    #[cfg(target_arch = "aarch64")] 
+    {
+        IRet(kernelRsp);
+    }
 }
 
 extern "C" {

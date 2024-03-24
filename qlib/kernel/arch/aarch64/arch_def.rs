@@ -85,11 +85,11 @@ impl Aarch64FPState{
     }
 
     pub fn SaveFp(&self) {
-        asm::SaveFloatingPoint(self.FloatingPointData());
+        //asm::SaveFloatingPoint(self.FloatingPointData());
     }
 
     pub fn RestoreFp(&self) {
-        asm::LoadFloatingPoint(self.FloatingPointData());
+        //asm::LoadFloatingPoint(self.FloatingPointData());
     }
     //
     //NOTE: Every thing here is placeholder.

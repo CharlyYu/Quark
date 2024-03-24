@@ -236,6 +236,7 @@ pub extern "C" fn exception_handler_el0_sync(ptregs_addr: usize) {
     let currTask = task::Task::Current();
     currTask.AccountTaskLeave(SchedState::RunningApp);
     currTask.SaveTLS();
+    currTask.SaveFp();
     let esr = GetEsrEL1();
     let ec = EsrDefs::GetExceptionFromESR(esr);
     if ptregs_addr == 0 {
@@ -246,6 +247,7 @@ pub extern "C" fn exception_handler_el0_sync(ptregs_addr: usize) {
     let ctx_p = ptregs_addr as *mut PtRegs;
     let ctx_p = ctx_p.cast::<PtRegs>();
     let ctx = unsafe { &mut *ctx_p };
+    debug!("============exception with ptregs_addr {:x}, currTask.KernelSp {:x}, currTask.ptRegs: {:x?}", ptregs_addr, currTask.GetKernelSp(), currTask.GetPtRegs());
     match ec {
         EsrDefs::EC_SVC => {
             // syscall number from w8
@@ -287,12 +289,14 @@ pub extern "C" fn exception_handler_el0_sync(ptregs_addr: usize) {
         },
         _ => {
             panic!(
-                "unhandled sync exception from el0: {},\n current-context: {:?}",
+                "unhandled sync exception from el0: {},\n current-context: {:x?}",
                 ec, ctx
             );
         } // TODO (default case) for a unhandled exception from user,
           // the kill the user process instead of panicing
     }
+    unsafe { debug!("============after exception with ptregs_addr {:x}, currTask.KernelSp {:x}, sp value: {:x},  currTask.ptRegs: {:x?}", ptregs_addr, currTask.GetKernelSp(), *(currTask.GetKernelSp() as *const u64), currTask.GetPtRegs()); }
+    currTask.RestoreFp();
     CPULocal::Myself().SetMode(VcpuMode::User);
 }
 
@@ -340,6 +344,7 @@ pub fn MemAbortUser(ptregs_addr:usize, esr:u64, far:u64, is_instr:bool){
             //
             let error_code = PageFaultErrorCode::new(true, esr);
             PageFaultHandler(ptregs , far, error_code);
+
             return;
         },
         _ => {

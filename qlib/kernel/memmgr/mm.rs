@@ -1004,6 +1004,7 @@ impl MemoryManager {
 
     pub fn VirtualToPhyLocked(&self, vAddr: u64) -> Result<(u64, AccessType)> {
         if vAddr == 0 {
+            error!("=====vAddr is zero,in VirtualToPhyLocked");
             return Err(Error::SysError(SysErr::EFAULT));
         }
 
@@ -1039,6 +1040,7 @@ impl MemoryManager {
         let exec = vma.effectivePerms.Exec();
         match &vma.mappable.HostIops() {
             Some(iops) => {
+                info!("=======map host iops");
                 let vmaOffset = pageAddr - range.Start();
                 let fileOffset = vmaOffset + vma.offset; // offset in the file
                 let phyAddr = iops.MapFilePage(task, fileOffset)?;
@@ -1072,6 +1074,7 @@ impl MemoryManager {
                 // for mmappable socket
                 match vma.mappable.ByteStream() {
                     Some(b) => {
+                        info!("=======map byte stream");
                         let vmaOffset = pageAddr - range.Start();
                         let fileOffset = vmaOffset + vma.offset; // offset in the file
                         let (phyAddr, len) = b.lock().GetRawBuf();
@@ -1091,7 +1094,7 @@ impl MemoryManager {
 
                 //let vmaOffset = pageAddr - range.Start();
                 //let phyAddr = vmaOffset + vma.offset; // offset in the phyAddr
-
+                info!("=======map empty page");
                 let phyAddr = super::super::PAGE_MGR.AllocPage(true).unwrap();
                 let writeable = vma.effectivePerms.Write();
                 if writeable {
@@ -1150,6 +1153,13 @@ impl MemoryManager {
         let exec = vma.effectivePerms.Exec();
         let page = { super::super::PAGE_MGR.AllocPage(false).unwrap() };
         CopyPage(page, phyAddr);
+        for loc in 0..MemoryDef::PAGE_SIZE {
+            unsafe {
+                if *((page+loc) as *const u8) != *((phyAddr+loc) as *const u8) {
+                    error!("{} is different, {} != {}", phyAddr+loc, *((page+loc) as *const u8), *((phyAddr+loc) as *const u8));
+                }
+            }
+        }
         self.MapPageWriteLocked(pageAddr, page, exec);
     }
 
@@ -1243,8 +1253,11 @@ impl MemoryManager {
                     let cnt = output.len();
                     if cnt > 0 && output[cnt - 1].End() == iov.start {
                         // use the last entry
+                        error!("==========extend io vec to:{:x?}", iov);
                         output[cnt - 1].len += iov.len;
                     } else {
+                        let root = self.pagetable.read().pt.GetRoot();
+                         error!("==========add io vec: {:x?}, root: {:x}", iov, root);
                         output.push(iov);
                     }
                 }
@@ -1270,6 +1283,7 @@ impl MemoryManager {
         allowPartial: bool,
     ) -> Result<u64> {
         if core::u64::MAX - vAddr < len || vAddr == 0 {
+            error!("======vAddr {} in FixPermission", vAddr);
             return Err(Error::SysError(SysErr::EFAULT));
         }
 
@@ -1301,6 +1315,7 @@ impl MemoryManager {
         });
 
         if (vAddr as i64) < 0 {
+            error!("======vAddr {} snaller than 0", vAddr as i64);
             return Err(Error::SysError(SysErr::EFAULT));
         }
 
@@ -1321,9 +1336,11 @@ impl MemoryManager {
                     if !rlock.Writable() {
                         rlock.Upgrade();
                     }
+                    error!("======install page {:x}", addr);
                     match self.InstallPageWithAddrLocked(task, addr) {
                         Err(_) => {
                             if !allowPartial || addr < vAddr {
+                                error!("======addr {} < vAddr {}, not allowPartial", addr, vAddr);
                                 return Err(Error::SysError(SysErr::EFAULT));
                             }
 
@@ -1336,13 +1353,17 @@ impl MemoryManager {
                     }
                     self.VirtualToPhyLocked(addr)?
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    error!("======virtual to physics error {:?}, vAddr {:x}, addr {:x}", e, vAddr, addr);
+                    return Err(e);
+                }
                 Ok(ret) => ret,
             };
 
             if !permission.Read() {
                 // No read permission
                 if !allowPartial || addr < vAddr {
+                    error!("======addr {} < vAddr {}, not allowPartial not readable", addr, vAddr);
                     return Err(Error::SysError(SysErr::EFAULT));
                 }
 
@@ -1367,16 +1388,18 @@ impl MemoryManager {
                 Some(vma) => vma.clone(),
             };
 
-            if vma.maxPerms.Write() && !permission.Write() {
+            if writeReq && vma.maxPerms.Write() && !permission.Write() {
                 if !rlock.Writable() {
                     rlock.Upgrade();
                 }
+                error!("======copy on write: {:x}", addr);
                 self.CopyOnWriteLocked(addr, &vma);
                 needTLBShootdown = true;
             }
 
             if writeReq && !vma.effectivePerms.Write() {
                 if !allowPartial || addr < vAddr {
+                    error!("======addr {} < vAddr {}, not allowPartial, not writable", addr, vAddr);
                     return Err(Error::SysError(SysErr::EFAULT));
                 }
 
@@ -1572,7 +1595,7 @@ impl MemoryManager {
                 vma.mlockMode = MLockMode::MlockNone;
 
                 if vma.kernel == false {
-                    //info!("vma kernel is {}, private is {}, hint is {}", vma.kernel, vma.private, vma.hint);
+                    info!("vma kernel is {}, private is {}, hint is {}", vma.kernel, vma.private, vma.hint);
                     if vma.private {
                         //cow
                         ptInternal1.pt.ForkRange(
@@ -1582,6 +1605,7 @@ impl MemoryManager {
                             &*PAGE_MGR,
                         )?;
                     } else {
+                        info!("copy range: vma kernel is {}, private is {}, hint is {}", vma.kernel, vma.private, vma.hint);
                         ptInternal1.pt.CopyRange(
                             &ptInternal2.pt,
                             vmaAR.Start(),

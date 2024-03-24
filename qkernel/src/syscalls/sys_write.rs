@@ -175,19 +175,27 @@ pub fn SysWritev(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
         }
     }*/
 
-    let n = Writev(task, fd, addr, iovcnt)?;
+    let n = Writev(task, fd, addr, iovcnt).map_err(|e| {
+        error!("=============failed to writev {:?}", e);
+        e
+    })?;
     task.ioUsage.AccountWriteSyscall(n);
     return Ok(n);
 }
 
 pub fn Writev(task: &Task, fd: i32, addr: u64, iovcnt: i32) -> Result<i64> {
-    let file = task.GetFile(fd)?;
+    let file = task.GetFile(fd).map_err(|e| {
+        error!("=====writev error: failed to get file: {:?}", e);
+        e
+    })?;
 
     if !file.Flags().Write || file.Flags().Path {
+        error!("====writev error: permission error");
         return Err(Error::SysError(SysErr::EBADF));
     }
 
     if iovcnt < 0 {
+        error!("====writev error: iovcnt smaller than zero");
         return Err(Error::SysError(SysErr::EINVAL));
     }
 
@@ -195,7 +203,10 @@ pub fn Writev(task: &Task, fd: i32, addr: u64, iovcnt: i32) -> Result<i64> {
         return Ok(0);
     }
 
-    let srcs = task.IovsFromAddr(addr, iovcnt as usize)?;
+    let srcs = task.IovsFromAddr(addr, iovcnt as usize).map_err(|e| {
+        error!("=======writev error: to iovec error: {:?}", e);
+        e
+    })?;
     return writev(task, &file, &srcs);
 }
 
@@ -272,7 +283,13 @@ fn RepWritev(task: &Task, f: &File, srcs: &[IoVec]) -> Result<i64> {
 }
 
 pub fn writev(task: &Task, f: &File, srcs: &[IoVec]) -> Result<i64> {
-    let iovs = task.AdjustIOVecPermission(srcs, false, true)?;
+    if srcs.len() >= 1 {
+        error!("=========writev: adjust iovec permission: {:x?}", srcs[0]);
+    }
+    let iovs = task.AdjustIOVecPermission(srcs, false, true).map_err(|e| {
+        error!("=======writev error: failed to ajust iovec permission");
+        e
+    })?;
     let srcs = &iovs;
 
     let len = Iovs(srcs).Count();
@@ -286,6 +303,7 @@ pub fn writev(task: &Task, f: &File, srcs: &[IoVec]) -> Result<i64> {
         match f.Writev(task, srcs) {
             Err(Error::ErrInterrupted) => return Err(Error::SysError(SysErr::ERESTARTSYS)),
             Err(e) => {
+                error!("=======writev error: writev of file error: {:?}", e);
                 return Err(e);
             }
             Ok(n) => {
@@ -302,6 +320,7 @@ pub fn writev(task: &Task, f: &File, srcs: &[IoVec]) -> Result<i64> {
 
     let dl = f.FileOp.SendTimeout();
     if dl < 0 {
+        error!("=======writev error: send timeout smaller than 0");
         return Err(Error::SysError(SysErr::EWOULDBLOCK));
     }
 
@@ -332,7 +351,7 @@ pub fn writev(task: &Task, f: &File, srcs: &[IoVec]) -> Result<i64> {
                 if count > 0 {
                     break;
                 }
-
+                error!("==========writev error: writev file error with blocking: {:?}", e);
                 return Err(e);
             }
             Ok(n) => {
@@ -363,6 +382,7 @@ pub fn writev(task: &Task, f: &File, srcs: &[IoVec]) -> Result<i64> {
                 if count > 0 {
                     break;
                 }
+                error!("=======writev error: block with monotimer error: {:?}", e);
                 return Err(e);
             }
             _ => (),

@@ -62,16 +62,19 @@ impl MemoryManager {
         let mut gap = mapping.vmas.LowerBoundGap(bounds.Start());
 
         while gap.Ok() && gap.Range().Start() < bounds.End() {
+            info!("=========gap range: {:x?}", gap.Range());
             let gr = gap.Range().Intersect(bounds);
             if gr.Len() > length {
                 // Can we shift up to match the alignment?
                 let offset = gr.Start() % alignment;
                 if offset != 0 {
                     if gr.Len() >= length + alignment - offset {
+                        info!("=========got available with offset: {:x}", gr.Start() + (alignment - offset));
                         return Ok(gr.Start() + (alignment - offset));
                     }
                 }
 
+                info!("=========got available: {:x}", gr.Start());
                 // Either aligned perfectly, or can't align it.
                 return Ok(gr.Start());
             }
@@ -93,6 +96,7 @@ impl MemoryManager {
         let mut gap = mapping.vmas.UpperBoundGap(bounds.End());
 
         while gap.Ok() && gap.Range().End() > bounds.Start() {
+            info!("=========gap range: {:x?}", gap.Range());
             let gr = gap.Range().Intersect(bounds);
             if gr.Len() > length {
                 // Can we shift up to match the alignment?
@@ -100,10 +104,11 @@ impl MemoryManager {
                 let offset = gr.Start() % alignment;
                 if offset != 0 {
                     if gr.Start() >= start - offset {
+                        info!("=========got available with offset: {:x}", start-offset);
                         return Ok(start - offset);
                     }
                 }
-
+                info!("=========got available: {:x}", start);
                 // Either aligned perfectly, or can't align it.
                 return Ok(start);
             }
@@ -201,11 +206,13 @@ impl MemoryManager {
             Ok(r) => {
                 if allowedRange.IsSupersetOf(&r) {
                     if opts.Unmap {
+                        info!("===unmap: found available: {:x}", r.Start());
                         return Ok(r.Start());
                     }
 
                     let vgap = self.mapping.lock().vmas.FindGap(r.Start());
                     if vgap.Ok() && vgap.AvailableRange().IsSupersetOf(&r) {
+                        info!("===found gap available: {:x}", r.Start());
                         return Ok(r.Start());
                     }
                 }
@@ -225,18 +232,24 @@ impl MemoryManager {
         }
 
         if opts.Map32Bit {
+            info!("===32bit find lowest available");
             return self.FindLowestAvailableLocked(length, alignment, &allowedRange);
         }
 
         let layout = *self.layout.lock();
         if layout.DefaultDirection == MMAP_BOTTOM_UP {
+            info!("===find lowest available");
+            let map = self.GetSnapshotLocked(Task::Current(), false);
+            error!("VM: The map is {}", &map);
             return self.FindLowestAvailableLocked(
                 length,
                 alignment,
                 &Range::New(layout.BottomUpBase, layout.MaxAddr - layout.BottomUpBase),
             );
         }
-
+        info!("===find highest available");
+        let map = self.GetSnapshotLocked(Task::Current(), false);
+        error!("VM: The map is {}", &map);
         return self.FindHighestAvailableLocked(
             length,
             alignment,
@@ -264,6 +277,7 @@ impl MemoryManager {
 
         let ar = Range::New(addr, opts.Length);
 
+        info!("===============map {:x?}, opts: {}", ar, opts.Perms.String());
         let mut newUsageAS = self.mapping.lock().usageAS + opts.Length;
         if opts.Unmap {
             newUsageAS -= self.mapping.lock().vmas.SpanRange(&ar);

@@ -273,7 +273,7 @@ impl PageTables {
                     to.MapPage(
                         Addr(vAddr),
                         Addr(phyAddr),
-                        PageOpts::UserReadOnly().Val(),
+                        PageOpts::UserReadOnly().Val() | entry.flags(),
                         pagePool,
                     )?;
                 }
@@ -373,7 +373,10 @@ impl PageTables {
     }
 
     pub fn VirtualToPhy(&self, vaddr: u64) -> Result<(u64, AccessType)> {
-        let pteEntry = self.VirtualToEntry(vaddr)?;
+        let pteEntry = self.VirtualToEntry(vaddr).map_err(|e| {
+            error!("==========VirtualToEntry error in VirtualToPhy: {:?}", e);
+            e
+        })?;
         if pteEntry.is_unused() {
             return Err(Error::AddressNotMap(vaddr));
         }
@@ -1386,7 +1389,7 @@ impl PageTables {
         // bit57: whether there is thread is working on swapping the page
         if is_pte_swapped(flags) {
             let needSwapin = {
-                let _l = crate::GLOBAL_LOCK.lock();
+                let _l: spin::MutexGuard<'_, ()> = crate::GLOBAL_LOCK.lock();
 
                 let mut flags = pteEntry.flags();
 
@@ -1457,7 +1460,8 @@ impl PageTables {
                 #[cfg(target_arch = "x86_64")]
                 let flags_arch = flags;
                 #[cfg(target_arch = "aarch64")]
-                let flags_arch = flags | PageTableFlags::PAGE;
+                let flags_arch = flags | entry.flags();
+                error!("=======Mprotect page {:x}-{:x} to {:b}", virtualAddr, entry.addr().as_u64(), flags_arch);
                 entry.set_flags(flags_arch);
                 Invlpg(virtualAddr);
             },

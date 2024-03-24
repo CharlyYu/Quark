@@ -552,10 +552,17 @@ impl Task {
         return unsafe { &mut *(self.taskId as *mut Task) };
     }
 
+    //#[cfg(target_arch = "x86_64")]
     #[inline(always)]
     pub fn GetKernelSp(&self) -> u64 {
         return self.taskId + DEFAULT_STACK_SIZE as u64 - 0x10;
     }
+
+    // #[cfg(target_arch = "aarch64")]
+    // #[inline(always)]
+    // pub fn GetKernelSp(&self) -> u64 {
+    //     return self.taskId + DEFAULT_STACK_SIZE as u64 - 0x20;
+    // }
 
     #[inline(always)]
     pub fn GetPtRegs(&self) -> &'static mut PtRegs {

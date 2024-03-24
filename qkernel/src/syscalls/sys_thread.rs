@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use core::slice;
+
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::sync::Arc;
@@ -22,6 +24,8 @@ pub use xmas_elf::program::{Flags, ProgramHeader, ProgramHeader64};
 pub use xmas_elf::sections::Rela;
 pub use xmas_elf::symbol_table::{Entry, Entry64};
 pub use xmas_elf::{P32, P64};
+
+use crate::qlib::addr::Addr;
 
 use super::super::asm::*;
 use super::super::kernel::cpuset::*;
@@ -422,6 +426,25 @@ pub fn SysClone(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     #[cfg(target_arch = "aarch64")]{
         tls = args.arg3;
         cTid = args.arg4;
+    }
+
+    let sp = task.GetPtRegs().get_stack_pointer();
+    let stack_bottom = Addr(sp).RoundUp()?.0;
+    let len = (stack_bottom - sp) as usize;
+    let ptr = sp as *const u8;
+    let buf = unsafe { slice::from_raw_parts(ptr, len) };
+    error!("Before clone, the sp is {:x}", sp);
+    let mut start = 0; 
+    loop {
+        let mut end = start + 100;
+        if end > len {
+            end = len;
+        }
+        error!("buffer {}-{}: {:x?}", start, end, &buf[start..end]);
+        if end == len {
+            break;
+        }
+        start = end;
     }
     // aarch64: should be different!
     let pid = task.Clone(flags, cStack, pTid, cTid, tls)?;
