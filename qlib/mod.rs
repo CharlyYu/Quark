@@ -1219,7 +1219,7 @@ impl ShareSpace {
     }
 
     pub fn SignalHandlerAddr(&self) -> u64 {
-        return self.signalHandlerAddr.load(Ordering::Relaxed);
+        return self.signalHandlerAddr.load(Ordering::Acquire);
     }
 
     // pub fn SetvirtualizationHandlerAddr(&self, addr: u64) {
@@ -1239,11 +1239,11 @@ impl ShareSpace {
     }
 
     pub fn Shutdown(&self) -> bool {
-        return self.shutdown.load(Ordering::Relaxed);
+        return self.shutdown.load(Ordering::Acquire);
     }
 
     fn IsPendingWrite(&self) -> bool {
-        return self.pendingWrite.load(Ordering::Relaxed) != 0;
+        return self.pendingWrite.load(Ordering::Acquire) != 0;
     }
 
     pub fn IncrPendingWrite(&self) {
@@ -1283,15 +1283,15 @@ impl ShareSpace {
     }
 
     pub fn HostHostEpollfd(&self) -> i32 {
-        return self.hostEpollfd.load(Ordering::Relaxed);
+        return self.hostEpollfd.load(Ordering::Acquire);
     }
 
     pub fn SetValue(&self, cpuId: usize, idx: usize, val: u64) {
-        self.values[cpuId][idx].store(val, Ordering::Relaxed);
+        self.values[cpuId][idx].store(val, Ordering::Release);
     }
 
     pub fn GetValue(&self, cpuId: usize, idx: usize) -> u64 {
-        return self.values[cpuId][idx].load(Ordering::Relaxed);
+        return self.values[cpuId][idx].load(Ordering::Acquire);
     }
 
     #[inline]

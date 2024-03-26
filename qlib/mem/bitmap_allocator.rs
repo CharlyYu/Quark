@@ -847,10 +847,10 @@ pub struct BitmapAllocatorWrapper {
 
 impl BitmapAllocatorWrapper {
     pub fn Allocator(&self) -> &mut BitmapAllocator {
-        let mut addr = self.addr.load(atomic::Ordering::Relaxed);
+        let mut addr = self.addr.load(atomic::Ordering::Acquire);
         if addr == 0 {
             self.Init();
-            addr = self.addr.load(atomic::Ordering::Relaxed);
+            addr = self.addr.load(atomic::Ordering::Acquire);
             let allocator = unsafe { &mut *(addr as *mut BitmapAllocator) };
             allocator.Bootstrap(addr);
             return allocator;

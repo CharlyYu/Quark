@@ -266,7 +266,7 @@ impl X86fpstate {
     pub fn Fork(&self) -> Self {
         let mut f = Self::New();
 
-        for i in 0..self.size.load(Ordering::Relaxed) {
+        for i in 0..self.size.load(Ordering::Acquire) {
             f.data[i] = self.data[i];
         }
         f.size

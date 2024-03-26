@@ -146,7 +146,7 @@ impl QUring {
 
     #[inline(always)]
     pub fn IOUring(&self) -> &'static IoUring {
-        let addr = self.uringsAddr.load(atomic::Ordering::Relaxed);
+        let addr = self.uringsAddr.load(atomic::Ordering::Acquire);
         let uring = unsafe { &*(addr as *const IoUring) };
 
         return uring;

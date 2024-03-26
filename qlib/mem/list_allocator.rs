@@ -417,7 +417,7 @@ impl ListAllocator {
         //return "".to_string();
         let mut total = 0;
         for i in 3..24 {
-            total += (1 << i) * self.maxnum[i].load(Ordering::Relaxed);
+            total += (1 << i) * self.maxnum[i].load(Ordering::Acquire);
         }
         return format!(
             "total {:?}/{}, {:?}",
@@ -463,7 +463,7 @@ impl ListAllocator {
             self.AddToHead(start, end)
         }
 
-        self.initialized.store(true, Ordering::Relaxed);
+        self.initialized.store(true, Ordering::Release);
     }
 
     pub fn NeedFree(&self) -> bool {
@@ -533,7 +533,7 @@ unsafe impl GlobalAlloc for ListAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         self.Check();
 
-        let initialized = self.initialized.load(Ordering::Relaxed);
+        let initialized = self.initialized.load(Ordering::Acquire);
         if !initialized {
             self.initialize();
         }

@@ -18,7 +18,7 @@ impl<T> Deref for ObjectRef<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        unsafe { &*(self.addr.load(Ordering::Relaxed) as *const T) }
+        unsafe { &*(self.addr.load(Ordering::SeqCst) as *const T) }
     }
 }
 
@@ -31,7 +31,7 @@ impl<T> ObjectRef<T> {
     }
 
     pub fn Ptr(&self) -> &T {
-        unsafe { &*(self.addr.load(Ordering::Relaxed) as *const T) }
+        unsafe { &*(self.addr.load(Ordering::SeqCst) as *const T) }
     }
 
     pub fn SetValue(&self, addr: u64) {
@@ -39,6 +39,6 @@ impl<T> ObjectRef<T> {
     }
 
     pub fn Value(&self) -> u64 {
-        return self.addr.load(Ordering::Relaxed);
+        return self.addr.load(Ordering::SeqCst);
     }
 }

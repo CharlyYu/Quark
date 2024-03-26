@@ -366,7 +366,7 @@ impl PageBlock {
 
     pub fn GetPages(&self, output: &mut Vec<u64>) -> Result<()> {
         for i in 1..self.refs.len() {
-            let cnt = self.refs[i].load(Ordering::Relaxed);
+            let cnt = self.refs[i].load(Ordering::Acquire);
             if cnt > 0 {
                 output.push(self.IdxToAddr(i as _));
             }
@@ -377,7 +377,7 @@ impl PageBlock {
 
     pub fn PrintPages(&self) {
         for i in 1..self.refs.len() {
-            let cnt = self.refs[i].load(Ordering::Relaxed);
+            let cnt = self.refs[i].load(Ordering::Acquire);
             if cnt > 0 {
                 error!(
                     "PageBlock {:x} pages {:x}/{}",

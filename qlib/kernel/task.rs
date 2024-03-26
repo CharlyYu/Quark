@@ -844,6 +844,7 @@ impl Task {
     pub fn SwitchPageTable(&self) {
         let root = self.mm.GetRoot();
         let curr = super::asm::CurrentUserTable();
+        info!("current root: {:x}, will switch to {:x}", curr, root);
         if curr != root {
             CPULocal::Myself()
                 .tlbEpoch

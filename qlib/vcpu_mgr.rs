@@ -108,7 +108,7 @@ impl CPULocal {
     }
 
     pub fn IncrUringMsgCnt(&self, cnt: u64) -> u64 {
-        return self.uringMsgCount.fetch_add(cnt, Ordering::Relaxed);
+        return self.uringMsgCount.fetch_add(cnt, Ordering::SeqCst);
     }
 
     pub fn ResetEnterAppTimestamp(&self) -> i64 {

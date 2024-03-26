@@ -158,12 +158,12 @@ pub struct IOMgr {
 
 impl IOMgr {
     pub fn InitPollHostEpoll(&self, hostEpollWaitfd: i32) {
-        self.epollfd.store(hostEpollWaitfd, Ordering::Relaxed);
+        self.epollfd.store(hostEpollWaitfd, Ordering::Release);
         IOURING.PollHostEpollWaitInit(hostEpollWaitfd);
     }
 
     pub fn Epollfd(&self) -> i32 {
-        return self.epollfd.load(Ordering::Relaxed);
+        return self.epollfd.load(Ordering::Acquire);
     }
 
     pub fn GetByHost(&self, fd: i32) -> Option<FdInfo> {

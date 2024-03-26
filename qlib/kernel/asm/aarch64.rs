@@ -60,10 +60,13 @@ pub fn GetVcpuId() -> usize {
 pub fn LoadUserTable(table: u64) {
     unsafe {
         asm!("msr ttbr0_el1, {0}
-        ic iallu
-        dsb nsh
-        isb",
+        isb
+        ",
         in(reg) table);
+        // asm!("msr ttbr0_el1, {0}
+        // isb
+        // ",
+        // in(reg) table);
     };
 }
 

@@ -125,23 +125,23 @@ impl CPULocal {
     }
 
     pub fn SetKernelStack(task: u64) {
-        Self::Myself().kernelStack.store(task, Ordering::Relaxed); //the data only read in current thread
+        Self::Myself().kernelStack.store(task, Ordering::Release); //the data only read in current thread
     }
 
     pub fn KernelStack() -> u64 {
-        return Self::Myself().kernelStack.load(Ordering::Relaxed); //the data only read in current thread
+        return Self::Myself().kernelStack.load(Ordering::Acquire); //the data only read in current thread
     }
 
     pub fn SwitchCount() -> u64 {
-        Self::Myself().switchCount.load(Ordering::Relaxed)
+        Self::Myself().switchCount.load(Ordering::Acquire)
     }
 
     pub fn IncreaseSwitchCount() -> u64 {
-        return Self::Myself().switchCount.fetch_add(1, Ordering::Relaxed) + 1;
+        return Self::Myself().switchCount.fetch_add(1, Ordering::SeqCst) + 1;
     }
 
     pub fn SetUserStack(task: u64) {
-        Self::Myself().userStack.store(task, Ordering::Relaxed); //the data only read in current thread
+        Self::Myself().userStack.store(task, Ordering::Release); //the data only read in current thread
     }
 
     pub fn UserStack() -> u64 {

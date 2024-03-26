@@ -127,7 +127,7 @@ impl OOMHandler for ListAllocator {
 
 impl ListAllocator {
     pub fn initialize(&self) -> () {
-        self.initialized.store(true, Ordering::Relaxed);
+        self.initialized.store(true, Ordering::Release);
     }
 
     pub fn Check(&self) {
@@ -217,6 +217,26 @@ pub fn switch(from: TaskId, to: TaskId) {
     let fromCtx = from.GetTask();
     let toCtx = to.GetTask();
 
+    let userSp = toCtx.GetPtRegs().get_stack_pointer();
+
+    let stack_bottom = Addr(userSp).RoundUp().unwrap().0;
+    let len = (stack_bottom - userSp) as usize;
+    let ptr = userSp as *const u8;
+    let buf = unsafe { slice::from_raw_parts(ptr, len) };
+    error!("Before context swap, before switch pagetable, the sp is {:x}", userSp);
+    let mut start:usize = 0; 
+    loop {
+        let mut end = start + 100;
+        if end > len {
+            end = len;
+        }
+        error!("buffer {}-{}: {:x?}", start, end, &buf[start..end]);
+        if end == len {
+            break;
+        }
+        start = end;
+    }    
+
     if !SHARESPACE.config.read().KernelPagetable {
         info!("switch pagetable for {:x}", toCtx.Addr());
         toCtx.SwitchPageTable();
@@ -229,6 +249,46 @@ pub fn switch(from: TaskId, to: TaskId) {
     //fromCtx.Check();
     //toCtx.Check();
     //debug!("switch {:x}->{:x}", from.data, to.data);
+    let userSp = toCtx.GetPtRegs().get_stack_pointer();
+
+    let stack_bottom = Addr(userSp).RoundUp().unwrap().0;
+    let len = (stack_bottom - userSp) as usize;
+    let ptr = userSp as *const u8;
+    let buf = unsafe { slice::from_raw_parts(ptr, len) };
+    error!("Before context swap, the sp is {:x}", userSp);
+    let mut start:usize = 0; 
+    loop {
+        let mut end = start + 100;
+        if end > len {
+            end = len;
+        }
+        error!("buffer {}-{}: {:x?}", start, end, &buf[start..end]);
+        if end == len {
+            break;
+        }
+        start = end;
+    }
+
+    if userSp > 0 {
+        let (userSp, _) = toCtx.mm.VirtualToPhy(toCtx.GetPtRegs().get_stack_pointer()).unwrap();
+        let stack_bottom = Addr(userSp).RoundUp().unwrap().0;
+        let len = (stack_bottom - userSp) as usize;
+        let ptr = userSp as *const u8;
+        let buf = unsafe { slice::from_raw_parts(ptr, len) };
+        error!("Before context swap, the sp physis is {:x}", userSp);
+        let mut start:usize = 0; 
+        loop {
+            let mut end = start + 100;
+            if end > len {
+                end = len;
+            }
+            error!("buffer {}-{}: {:x?}", start, end, &buf[start..end]);
+            if end == len {
+                break;
+            }
+            start = end;
+        }
+    }
 
     unsafe {
         context_swap(fromCtx.GetContext(), toCtx.GetContext(), 1, 0);
@@ -281,6 +341,21 @@ pub fn Invlpg(addr: u64) {
             dsb ish
             isb
         ", in(reg) (addr >> MemoryDef::PAGE_SHIFT));
+        };
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[inline]
+pub fn LocalFlushTlbAll() {
+    if !super::SHARESPACE.config.read().KernelPagetable {
+        unsafe {
+            asm!("
+            dsb nshst
+            tlbi vmalle1
+            dsb nsh
+            isb
+        ");
         };
     }
 }

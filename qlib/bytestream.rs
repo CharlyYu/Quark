@@ -452,7 +452,7 @@ impl RingBuf {
     /****************************************** read *********************************************************/
     //return (whether there is task waiting write, how much read)
     pub fn read(&self, buf: &mut [u8]) -> Result<(bool, usize)> {
-        let head = self.headtail[0].load(Ordering::Relaxed);
+        let head = self.headtail[0].load(Ordering::Acquire);
         let tail = self.headtail[1].load(Ordering::Acquire);
 
         let mut available = tail.wrapping_sub(head) as usize;
@@ -496,7 +496,7 @@ impl RingBuf {
 
     //return addr, len, whethere there is more space
     pub fn GetReadBuf(&self) -> Option<(u64, usize, bool)> {
-        let head = self.headtail[0].load(Ordering::Relaxed);
+        let head = self.headtail[0].load(Ordering::Acquire);
         let tail = self.headtail[1].load(Ordering::Acquire);
 
         let available = tail.wrapping_sub(head) as usize;
@@ -537,7 +537,7 @@ impl RingBuf {
     pub fn PrepareDataIovs(&self, data: &mut SocketBufIovs) {
         let mut iovs = &mut data.iovs;
 
-        let head = self.headtail[0].load(Ordering::Relaxed);
+        let head = self.headtail[0].load(Ordering::Acquire);
         let tail = self.headtail[1].load(Ordering::Acquire);
 
         let available = tail.wrapping_sub(head) as usize;
@@ -593,7 +593,7 @@ impl RingBuf {
 
     pub fn GetWriteBuf(&self) -> Option<(u64, usize, bool)> {
         let head = self.headtail[0].load(Ordering::Acquire);
-        let tail = self.headtail[1].load(Ordering::Relaxed);
+        let tail = self.headtail[1].load(Ordering::Acquire);
 
         let available = tail.wrapping_sub(head) as usize;
         if available == self.Len() {
@@ -615,7 +615,7 @@ impl RingBuf {
         let mut iovs = &mut data.iovs;
 
         let head = self.headtail[0].load(Ordering::Acquire);
-        let tail = self.headtail[1].load(Ordering::Relaxed);
+        let tail = self.headtail[1].load(Ordering::Acquire);
         let available = tail.wrapping_sub(head) as usize;
 
         if available == self.Len() {
@@ -649,7 +649,7 @@ impl RingBuf {
 
     pub fn GetSpaceBuf(&self) -> (u64, usize) {
         let head = self.headtail[0].load(Ordering::Acquire);
-        let tail = self.headtail[1].load(Ordering::Relaxed);
+        let tail = self.headtail[1].load(Ordering::Acquire);
 
         let available = tail.wrapping_sub(head) as usize;
         if available == self.Len() {
@@ -708,7 +708,7 @@ impl RingBuf {
     /// return: write user buffer to socket bytestream and determine whether to trigger async socket ops
     pub fn write(&mut self, buf: &[u8]) -> Result<(bool, usize)> {
         let head = self.headtail[0].load(Ordering::Acquire);
-        let tail = self.headtail[1].load(Ordering::Relaxed);
+        let tail = self.headtail[1].load(Ordering::Acquire);
 
         let available = tail.wrapping_sub(head) as usize;
 
@@ -745,7 +745,7 @@ impl RingBuf {
 
     pub fn writeFull(&mut self, buf: &[u8]) -> Result<(bool, usize)> {
         let head = self.headtail[0].load(Ordering::Acquire);
-        let tail = self.headtail[1].load(Ordering::Relaxed);
+        let tail = self.headtail[1].load(Ordering::Acquire);
 
         let available = tail.wrapping_sub(head) as usize;
         let space = self.Len() - available;

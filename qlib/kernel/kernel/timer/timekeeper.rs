@@ -154,7 +154,7 @@ impl TimeKeeperInternal {
         //super::super::super::perflog::THREAD_COUNTS.lock().Print(true);
         //super::super::super::AllocatorPrint();
 
-        assert!(self.inited.load(Ordering::Relaxed), "TimeKeeper not inited");
+        assert!(self.inited.load(Ordering::Acquire), "TimeKeeper not inited");
         let (monotonicParams, monotonicOk, realtimeParams, realtimeOk) = self.clocks.Update();
 
         let mut p: VdsoParams = VdsoParams::default();
@@ -182,7 +182,7 @@ impl TimeKeeperInternal {
 
     // GetTime returns the current time in nanoseconds.
     pub fn GetTime(&self, c: ClockID) -> Result<i64> {
-        assert!(self.inited.load(Ordering::Relaxed), "TimeKeeper not inited");
+        assert!(self.inited.load(Ordering::SeqCst), "TimeKeeper not inited");
         match self.clocks.GetTime(c) {
             Err(e) => return Err(e),
             Ok(mut now) => {
@@ -197,7 +197,7 @@ impl TimeKeeperInternal {
 
     // BootTime returns the system boot real time.
     pub fn BootTime(&self) -> Time {
-        assert!(self.inited.load(Ordering::Relaxed), "TimeKeeper not inited");
+        assert!(self.inited.load(Ordering::SeqCst), "TimeKeeper not inited");
         return self.bootTime;
     }
 }

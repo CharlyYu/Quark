@@ -50,8 +50,8 @@ impl AsyncProcess {
 
     pub fn Process(&self) {
         let curr = TSC.Rdtsc();
-        if curr - self.lastTsc.load(Ordering::Relaxed) > TSC_GAP {
-            self.lastTsc.store(curr, Ordering::Relaxed);
+        if curr - self.lastTsc.load(Ordering::Acquire) > TSC_GAP {
+            self.lastTsc.store(curr, Ordering::Release);
             if let Some(mut processTime) = self.lastProcessTime.try_lock() {
                 let currTime = Task::MonoTimeNow().0 / MILLISECOND;
                 if currTime - *processTime >= CLOCK_TICK_MS {
