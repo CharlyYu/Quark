@@ -184,11 +184,12 @@ impl Deref for MemoryManager {
 
 impl Drop for MemoryManager {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.0) == 1 {
-            SHARESPACE.hiberMgr.RemoveMemMgr(self);
-            let _ml = self.MappingWriteLock();
-            self.CleanVMAs().unwrap();
-        }
+        // if Arc::strong_count(&self.0) == 1 {
+        //     SHARESPACE.hiberMgr.RemoveMemMgr(self);
+        //     let _ml = self.MappingWriteLock();
+        //     self.CleanVMAs().unwrap();
+        //     debug!("succeed drop mm");
+        // }
     }
 }
 
@@ -409,15 +410,21 @@ impl MemoryManager {
         while vseg.Ok() {
             let r = vseg.Range();
             let vma = vseg.Value();
-
+            debug!("=====range: {:x?}, vma: {:x?}", r, vma);
             if !vma.kernel {
+                debug!("=====remove mapping");
                 vma.mappable
                     .RemoveMapping(self, &r, vma.offset, vma.CanWriteMappableLocked())?;
             }
+            debug!("=====mapping romoved");
             let vgap = mapping.vmas.Remove(&vseg);
+            debug!("=====next");
+            
             vseg = vgap.NextSeg();
-        }
+            debug!("=====get next");
 
+        }
+        debug!("=====succeed remove vma");
         return Ok(());
     }
 

@@ -15,6 +15,8 @@
 use core::convert::TryFrom;
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
+use std::thread::sleep;
+use std::time::Duration;
 use lazy_static::lazy_static;
 use nix::sys::signal;
 
@@ -83,7 +85,7 @@ extern "C" fn handle_sigintAct(
     if SIGNAL_HANDLE_ENABLE.load(Ordering::Relaxed) {
         let sigfault: &SignalFaultInfo = unsafe { &*(signInfo as u64 as *const SignalFaultInfo) };
 
-        error!("get signal {}, action is {:x?}", signal, sigfault);
+        //error!("get signal {}, action is {:x?}", signal, sigfault);
 
         if signal == 11 {
             let ucontext = unsafe { &*(addr as *const UContext) };
@@ -95,24 +97,28 @@ extern "C" fn handle_sigintAct(
                 true
             });*/
 
-            error!("get signal context is {:#x?}", ucontext);
+            //error!("get signal context is {:#x?}", ucontext);
 
             #[cfg(target_arch = "x86_64")]
             let (ip, sp, bp) = (ucontext.MContext.rip,ucontext.MContext.rsp,ucontext.MContext.rbp);
             #[cfg(target_arch = "aarch64")]
             let (ip, sp, bp) = (ucontext.MContext.pc,ucontext.MContext.sp,ucontext.MContext.regs[29]);
-            backtracer::trace(
-                ip,
-                sp,
-                bp,
-                &mut |frame| {
-                    print!("panic frame is {:#x?}", frame);
-                    true
-                },
-            );
+            use crate::qlib::vcpu_mgr::CPULocal;
+            raw!(0x1020, ip,sp, CPULocal::CpuId() as u64);
+            // backtracer::trace(
+            //     ip,
+            //     sp,
+            //     bp,
+            //     &mut |frame| {
+            //         print!("panic frame is {:#x?}", frame);
+            //         true
+            //     },
+            // );
 
 
-            panic!("get signal 11");
+            //panic!("get signal 11");
+            sleep(Duration::from_secs(300));
+            unsafe{libc::exit(-11)};
         }
 
         let signal = SignalArgs {

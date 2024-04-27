@@ -173,7 +173,6 @@ impl Sampler {
 
     pub fn Syscall(&self) -> Result<ReferenceNS> {
         let sample = Sample(self.clockID)?;
-
         return Ok(sample.Ref);
     }
 

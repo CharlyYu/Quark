@@ -56,9 +56,10 @@ impl IoUring {
         let ret = IOUringEnter(self.fd.as_raw_fd(), count as _, 0, 0);
 
         if ret < 0 {
+            error!("=====submit entry error {}", ret);
             return Err(Error::SysError(-ret as i32));
         }
-
+        
         return Ok(ret as usize);
     }
 
@@ -198,7 +199,10 @@ impl IoUring {
             }
 
             if count > 0 {
-                let ret = self.SubmitEntry(count)?;
+                let ret = self.SubmitEntry(count).map_err(|e| {
+                    error!("============submit entry failed: {}", e);
+                    e
+                })?;
                 return Ok(ret);
             } else {
                 return Ok(0);
@@ -209,7 +213,10 @@ impl IoUring {
                 return Ok(0);
             }
 
-            let ret = self.SubmitEntry(count as _)?;
+            let ret = self.SubmitEntry(count as _).map_err(|e| {
+                error!("============submit entry failed2: {}", e);
+                e
+            })?;
             return Ok(ret);
         }
     }

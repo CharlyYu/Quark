@@ -183,6 +183,7 @@ pub extern "C" fn exception_handler_unhandled(_ptregs_addr:usize, exception_type
     // ptr == 0 indicates an empty entry in the exception table,
     // in which case the context won't be saved/restored by the wrapper
     // and this function MUST NOT return
+    raw!(0x901, exception_type as u64, 0, 0);
     panic!("unhandled exception - {}",
            match exception_type {
                0 => "EL1T_SYN",
@@ -200,6 +201,7 @@ pub extern "C" fn exception_handler_unhandled(_ptregs_addr:usize, exception_type
 
 #[no_mangle]
 pub extern "C" fn exception_handler_el1h_sync(ptregs_addr:usize){
+    raw!(0x902, 0x10, 0, 0);
     let esr = GetEsrEL1();
     let ec = EsrDefs::GetExceptionFromESR(esr);
 
@@ -233,6 +235,7 @@ pub extern "C" fn exception_handler_el1h_serror(ptregs_addr:usize){
 
 #[no_mangle]
 pub extern "C" fn exception_handler_el0_sync(ptregs_addr: usize) {
+    raw!(0x903, 0, 0, 0);
     let currTask = task::Task::Current();
     currTask.AccountTaskLeave(SchedState::RunningApp);
     currTask.SaveTLS();
@@ -259,14 +262,17 @@ pub extern "C" fn exception_handler_el0_sync(ptregs_addr: usize) {
             let arg4 = ctx.regs[4];
             let arg5 = ctx.regs[5];
             // write syscall ret to x0
+            debug!("=========syscall {}", call_no);
             ctx.regs[0] = syscall_dispatch_aarch64(call_no, arg0, arg1, arg2, arg3, arg4, arg5);
             // TODO do we need to write the "second ret val" back to x1?
         },
         EsrDefs::EC_DATA_ABORT_L => {
+            debug!("=========data abort");
             let far = GetFarEL1();
             MemAbortUser(ptregs_addr, esr, far, false);
         },
         EsrDefs::EC_INSN_ABORT_L => {
+            debug!("=========instruction abort");
             let far = GetFarEL1();
             MemAbortUser(ptregs_addr, esr, far, true);
         },

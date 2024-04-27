@@ -139,6 +139,7 @@ impl FileOperations for Writer {
         let size = IoVec::NumBytes(srcs);
         let mut buf = DataBuff::New(size);
         let len = task.CopyDataInFromIovs(&mut buf.buf, srcs, true)?;
+        let s = alloc::string::String::from_utf8(buf.buf.clone());
         let srcs = BlockSeq::New(&buf.buf[0..len]);
 
         let n = match self.pipe.Write(task, srcs) {

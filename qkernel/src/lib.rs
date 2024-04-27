@@ -494,7 +494,10 @@ pub fn MainRun(currTask: &mut Task, mut state: TaskRunState) {
                     // mm needs to be clean as last function before SwitchToNewTask
                     // after this is called, another vcpu might drop the pagetable
                     core::mem::drop(mm);
+                    raw!(0x600, 0,0,0);
+                    error!("RunExitDone xxx 3 [{:x}] ...", currTask.taskId);
                     CPULocal::Myself().pageAllocator.lock().Clean();
+                    error!("RunExitDone xxx 4 [{:x}] ...", currTask.taskId);
                 }
 
                 self::taskMgr::SwitchToNewTask();
@@ -691,16 +694,16 @@ fn panic(info: &PanicInfo) -> ! {
         true
     });*/
 
-    print!("get panic : {:?}", info.message());
-    if let Some(location) = info.location() {
-        print!(
-            "panic occurred in file '{}' at line {}",
-            location.file(),
-            location.line(),
-        );
-    } else {
-        print!("panic occurred but can't get location information...");
-    }
+    // print!("get panic : {:?}", info.message());
+    // if let Some(location) = info.location() {
+    //     print!(
+    //         "panic occurred in file '{}' at line {}",
+    //         location.file(),
+    //         location.line(),
+    //     );
+    // } else {
+    //     print!("panic occurred but can't get location information...");
+    // }
 
     /*for i in 0..CPU_LOCAL.len() {
         error!("CPU  #{} is {:#x?}", i, CPU_LOCAL[i]);
@@ -711,8 +714,9 @@ fn panic(info: &PanicInfo) -> ! {
         true
     });*/
 
-    self::Kernel::HostSpace::Panic(&format!("get panic: {:?}", info));
-    self::Kernel::HostSpace::Panic("get panic ...");
+    // self::Kernel::HostSpace::Panic(&format!("get panic: {:?}", info));
+    // self::Kernel::HostSpace::Panic("get panic ...");
+    raw!(0x2001, 0, 0, 0);
     loop {}
 }
 

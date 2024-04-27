@@ -30,7 +30,11 @@ pub struct KIOThread {
     pub eventfd: i32,
 }
 
+#[cfg(target_arch = "x86_64")]
 pub const IO_WAIT_CYCLES: i64 = 100_000_000; // 1ms
+
+#[cfg(target_arch = "aarch64")]
+pub const IO_WAIT_CYCLES: i64 = 1_000_000_000; // 1ms
 
 impl KIOThread {
     pub fn New() -> Self {
@@ -44,33 +48,42 @@ impl KIOThread {
     }
 
     pub fn ProcessOnce(sharespace: &ShareSpace) -> usize {
+        info!("========processonce1 start");
         let mut count = 0;
 
         if QUARK_CONFIG.lock().EnableRDMA {
             count += GlobalRDMASvcCli().ProcessRDMASvcMessage();
         }
+        info!("========processonce1 1");
         count += IOURING.IOUring().HostSubmit().unwrap();
+        info!("========processonce1 2");
         TIMER_STORE.Trigger();
+        info!("========processonce1 3");
         count += IOURING.IOUring().HostSubmit().unwrap();
+        info!("========processonce1 4");
         count += IOURING.DrainCompletionQueue();
+        info!("========processonce1 5");
         count += IOURING.IOUring().HostSubmit().unwrap();
+        info!("========processonce1 6");
         count += KVMVcpu::GuestMsgProcess(sharespace);
+        info!("========processonce1 7");
         count += IOURING.IOUring().HostSubmit().unwrap();
+        info!("========processonce1 8");
         count += FD_NOTIFIER.HostEpollWait() as usize;
+        info!("========processonce1 9");
         count += IOURING.IOUring().HostSubmit().unwrap();
-
+        info!("========processonce1 10");
         sharespace.CheckVcpuTimeout();
-
+        info!("========processonce1 finish");
         return count;
     }
 
     pub fn Process(sharespace: &ShareSpace) {
         let mut start = TSC.Rdtsc();
-
         while !sharespace.IsShutdown() {
             let count = Self::ProcessOnce(sharespace);
             if count > 0 {
-                start = TSC.Rdtsc()
+                start = TSC.Rdtsc();
             }
 
             if TSC.Rdtsc() - start >= IO_WAIT_CYCLES {
@@ -164,6 +177,7 @@ impl KIOThread {
 
         let mut data: u64 = 0;
         loop {
+            info!("===========kernel io thread loop");
             sharespace.IncrHostProcessor();
             if sharespace.IsShutdown() {
                 return Err(Error::Exit);
@@ -175,7 +189,6 @@ impl KIOThread {
                     .clientBitmap
                     .store(0, Ordering::Release);
             }
-
             Self::Process(sharespace);
 
             let ret =
@@ -188,7 +201,6 @@ impl KIOThread {
                     errno::errno().0
                 );
             }
-
             if QUARK_CONFIG.lock().EnableRDMA {
                 let ret = unsafe {
                     libc::read(
@@ -206,7 +218,6 @@ impl KIOThread {
                     );
                 }
             }
-
             if QUARK_CONFIG.lock().EnableRDMA {
                 GlobalRDMASvcCli()
                     .cliShareRegion
@@ -214,11 +225,9 @@ impl KIOThread {
                     .clientBitmap
                     .store(1, Ordering::Release);
             }
-
             if sharespace.DecrHostProcessor() == 0 {
                 Self::ProcessOnce(sharespace);
             }
-
             ASYNC_PROCESS.Process();
             let timeout = TIMER_STORE.Trigger() / 1000 / 1000;
 
@@ -234,7 +243,6 @@ impl KIOThread {
             } else {
                 timeout
             };
-
             /*if QUARK_CONFIG.lock().EnableRDMA {
                 RDMA.HandleCQEvent()?;
             }*/

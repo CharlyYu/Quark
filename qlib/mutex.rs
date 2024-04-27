@@ -393,11 +393,11 @@ impl QUpgradableLock {
         if self.lock.load(Ordering::Acquire) & (WRITER | UPGRADED) != 0 {
             return None;
         }
-        let value = self.lock.fetch_add(READER, Ordering::Acquire);
+        let value = self.lock.fetch_add(READER, Ordering::AcqRel);
 
         if value & (WRITER | UPGRADED) != 0 {
             // Lock is taken, undo.
-            self.lock.fetch_sub(READER, Ordering::Release);
+            self.lock.fetch_sub(READER, Ordering::AcqRel);
             None
         } else {
             //error!("RWLock {}: Read 2 cnt {:x}", self.id, value);
@@ -410,12 +410,12 @@ impl QUpgradableLock {
 
     #[inline(always)]
     pub fn ForceIncrRead(&self) -> u64 {
-        return (self.lock.fetch_add(READER, Ordering::Acquire) >> 2) + 1;
+        return (self.lock.fetch_add(READER, Ordering::AcqRel) >> 2) + 1;
     }
 
     #[inline(always)]
     pub fn ForceDecrRead(&self) -> u64 {
-        return self.lock.fetch_sub(READER, Ordering::Release);
+        return self.lock.fetch_sub(READER, Ordering::AcqRel);
     }
 
     #[inline]
@@ -435,8 +435,8 @@ impl QUpgradableLock {
             &self.lock,
             0,
             WRITER,
+            Ordering::SeqCst,
             Ordering::Acquire,
-            Ordering::Relaxed,
             strong,
         )
         .is_ok()
@@ -471,7 +471,7 @@ impl QUpgradableLock {
     }
 
     pub fn TryUpgrade(&self) -> bool {
-        if self.lock.fetch_or(UPGRADED, Ordering::Acquire) & (WRITER | UPGRADED) == 0 {
+        if self.lock.fetch_or(UPGRADED, Ordering::AcqRel) & (WRITER | UPGRADED) == 0 {
             return true;
         } else {
             // We can't unflip the UPGRADED bit back just yet as there is another upgradeable or write lock.
@@ -487,7 +487,7 @@ impl Drop for QUpgradableLockGuard {
             //error!("RWLock {}: write free {:x}", self.lock.id, self.lock.Value());
             self.lock
                 .lock
-                .fetch_and(!(WRITER | UPGRADED), Ordering::Release);
+                .fetch_and(!(WRITER | UPGRADED), Ordering::AcqRel);
         } else {
             let _cnt = self.lock.ForceDecrRead();
             //error!("RWLock {}: read free {:x}", self.lock.id, cnt);
@@ -505,8 +505,8 @@ impl QUpgradableLockGuard {
             &self.lock.lock,
             UPGRADED,
             WRITER,
+            Ordering::SeqCst,
             Ordering::Acquire,
-            Ordering::Relaxed,
             true,
         )
         .is_ok();
@@ -543,7 +543,7 @@ impl QUpgradableLockGuard {
         self.lock.ForceIncrRead();
         self.lock
             .lock
-            .fetch_and(!(UPGRADED | WRITER), Ordering::Release);
+            .fetch_and(!(UPGRADED | WRITER), Ordering::AcqRel);
         self.write.store(false, Ordering::Release);
         //error!("RWLock {}: Downgrade2 {:x}", self.lock.id, self.lock.Value());
     }

@@ -204,7 +204,7 @@ impl PageTables {
     #[cfg(target_arch = "aarch64")]
     pub fn Switch(table: u64) {
         LoadUserTable(table);
-        crate::LocalFlushTlbAll();
+        crate::kernel_def::LocalFlushTlbAll();
     }
 
     pub fn SetRoot(&self, root: u64) {
@@ -375,7 +375,6 @@ impl PageTables {
 
     pub fn VirtualToPhy(&self, vaddr: u64) -> Result<(u64, AccessType)> {
         let pteEntry = self.VirtualToEntry(vaddr).map_err(|e| {
-            error!("==========VirtualToEntry error in VirtualToPhy: {:?}", e);
             e
         })?;
         if pteEntry.is_unused() {
@@ -759,6 +758,7 @@ impl PageTables {
         Addr(start).PageAligned()?;
         Addr(end).PageAligned()?;
         let mut start = start;
+        raw!(0x701, start, end, 0);
         let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
         unsafe {
             let mut p4Idx: u16 = VirtAddr::new(start).p4_index().into();
@@ -796,7 +796,7 @@ impl PageTables {
                             p2Idx += 1;
                             continue;
                         }
-
+                        
                         let pteTbl = pmdEntry.addr().as_u64() as *mut PageTable;
                         let mut clearPTEEntries = 0;
                         let mut p1Idx: u16 = VirtAddr::new(start).p1_index().into();
@@ -812,6 +812,7 @@ impl PageTables {
                             }
 
                             clearPTEEntries += 1;
+                            raw!(0x702, start, 0, 0);
                             match self.freeEntry(pteEntry, pagePool) {
                                 Err(_e) => {
                                     //info!("pagetable::Unmap Error: paddr {:x}, vaddr is {:x}, error is {:x?}",
@@ -819,8 +820,9 @@ impl PageTables {
                                 }
                                 Ok(_) => (),
                             }
-
+                            raw!(0x703, 0, 0, 0);
                             Invlpg(start);
+                            raw!(0x704, 0, 0, 0);
                             start += MemoryDef::PAGE_SIZE;
                             p1Idx += 1;
                         }
@@ -830,7 +832,9 @@ impl PageTables {
                             let currAddr = pmdEntry.addr().as_u64();
                             let refCnt = pagePool.Deref(currAddr)?;
                             if refCnt == 0 {
+                                //raw!(0x705, 0, 0, 0);
                                 self.FreePage(currAddr);
+                                //raw!(0x706, 0, 0, 0);
                             }
                             pmdEntry.set_unused();
                             clearPMDEntries += 1;
@@ -842,9 +846,13 @@ impl PageTables {
 
                     if clearPMDEntries + unusedPMDEntryCount == MemoryDef::ENTRY_COUNT as usize {
                         let currAddr = pudEntry.addr().as_u64();
+                        raw!(0x707, 0, 0, 0);
                         let refCnt = pagePool.Deref(currAddr)?;
+                        raw!(0x708, 0, 0, 0);
                         if refCnt == 0 {
+                            raw!(0x709, 0, 0, 0);
                             self.FreePage(currAddr);
+                            raw!(0x710, 0, 0, 0);
                         }
                         pudEntry.set_unused();
                         clearPUDEntries += 1;
@@ -857,9 +865,13 @@ impl PageTables {
 
                 if clearPUDEntries + unusedPUDEntryCount == MemoryDef::ENTRY_COUNT as usize {
                     let currAddr = pgdEntry.addr().as_u64();
+                    raw!(0x711, 0, 0, 0);
                     let refCnt = pagePool.Deref(currAddr)?;
+                    raw!(0x712, 0, 0, 0);
                     if refCnt == 0 {
+                        raw!(0x713, 0, 0, 0);
                         self.FreePage(currAddr);
+                        raw!(0x714, 0, 0, 0);
                     }
                     pgdEntry.set_unused();
                     //info!("unmap pgdEntry {:x}", currAddr);
@@ -1462,7 +1474,6 @@ impl PageTables {
                 let flags_arch = flags;
                 #[cfg(target_arch = "aarch64")]
                 let flags_arch = flags | entry.flags();
-                error!("=======Mprotect page {:x}-{:x} to {:b}", virtualAddr, entry.addr().as_u64(), flags_arch);
                 entry.set_flags(flags_arch);
                 Invlpg(virtualAddr);
             },
@@ -1471,13 +1482,21 @@ impl PageTables {
     }
 
     fn freeEntry(&self, entry: &mut PageTableEntry, pagePool: &Allocator) -> Result<bool> {
+        raw!(0x801, 0, 0, 0);
         let currAddr = entry.addr().as_u64();
+        raw!(0x802, currAddr, 0, 0);
         let refCnt = pagePool.Deref(currAddr)?;
+        raw!(0x803, refCnt, 0, 0);
         if refCnt == 0 {
+            raw!(0x804, currAddr, 0, 0);
             self.FreePage(currAddr);
+            raw!(0x805, currAddr, 0, 0);
         }
+        raw!(0x806, 0, 0, 0);
         entry.set_unused();
+        raw!(0x807, 0, 0, 0);
         self.EnableTlbShootdown();
+        raw!(0x808, 0, 0, 0);
         return Ok(true);
     }
 

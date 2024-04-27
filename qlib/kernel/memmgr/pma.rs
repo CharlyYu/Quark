@@ -153,10 +153,17 @@ impl Drop for PageTables {
 
 impl PageTables {
     pub fn Drop(&self) {
-        self.UnmapAll()
+        raw!(0x601, 0,0,0);
+        self.UnmapAll().map_err(|e| {
+            raw!(0x660, 0, 0, 0);
+            e
+        })
             .expect("FreePageTables::Drop fail at UnmapAll");
+        raw!(0x602, 0,0,0);
         self.FreePages();
+        raw!(0x603, 0,0,0);
         self.SetRoot(0);
+        raw!(0x604, 0,0,0);
     }
 
     // create a new PageTable by clone the kernel pages.
@@ -246,34 +253,35 @@ impl PageTables {
                 PhysAddr::new(nPudTbl as u64),
                 PageTableFlags::VALID | PageTableFlags::TABLE | PageTableFlags::ACCESSED | PageTableFlags::USER_ACCESSIBLE,
             );
-            for i in MemoryDef::KERNEL_START_P2_ENTRY..MemoryDef::KERNEL_END_P2_ENTRY {
+
+            for i in MemoryDef::KERNEL_START_P2_ENTRY-1..MemoryDef::KERNEL_END_P2_ENTRY {
                 //memspace between 256GB to 512GB
                 //copy entry[i]
                 *(&mut (*nPudTbl)[i] as *mut _ as *mut u64) =
                     *(&(*pudTbl)[i] as *const _ as *const u64);
             }
         }
-        let mut opts = PageOpts::Kernel();
-        #[cfg(target_arch = "aarch64")]
-        opts.SetMtNormal().SetDirty().SetAccessed().SetWrite().SetGlobal().SetPresent();
+        // let mut opts = PageOpts::Kernel();
+        // #[cfg(target_arch = "aarch64")]
+        // opts.SetMtNormal().SetDirty().SetAccessed().SetWrite().SetGlobal().SetPresent();
 
-        ret.MapPage(
-            Addr(MemoryDef::KVM_IOEVENTFD_BASEADDR),
-            Addr(MemoryDef::KVM_IOEVENTFD_BASEADDR),
-            opts.Val(),
-            pagePool,
-        )?;
+        // ret.MapPage(
+        //     Addr(MemoryDef::KVM_IOEVENTFD_BASEADDR),
+        //     Addr(MemoryDef::KVM_IOEVENTFD_BASEADDR),
+        //     opts.Val(),
+        //     pagePool,
+        // )?;
 
-        #[cfg(target_arch = "aarch64")]
-        {
-            let mut opts = PageOpts::Zero();
-            opts.SetWrite().SetGlobal().SetPresent().SetAccessed();
-            opts.SetMMIOPage();
-            ret.MapPage(Addr(MemoryDef::HYPERCALL_MMIO_BASE),
-            Addr(MemoryDef::HYPERCALL_MMIO_BASE),
-            opts.Val(),
-            pagePool)?;
-        }
+        // #[cfg(target_arch = "aarch64")]
+        // {
+        //     let mut opts = PageOpts::Zero();
+        //     opts.SetWrite().SetGlobal().SetPresent().SetAccessed();
+        //     opts.SetMMIOPage();
+        //     ret.MapPage(Addr(MemoryDef::HYPERCALL_MMIO_BASE),
+        //     Addr(MemoryDef::HYPERCALL_MMIO_BASE),
+        //     opts.Val(),
+        //     pagePool)?;
+        // }
 
         #[cfg(target_arch = "x86_64")]
         {
@@ -405,7 +413,11 @@ impl PageTables {
     }
 
     pub fn UnmapAll(&self) -> Result<()> {
+        //#[cfg(target_arch = "aarch64")]
+        //self.Unmap(MemoryDef::PAGE_SIZE, MemoryDef::HYPERCALL_MMIO_BASE, &*PAGE_MGR)?;
+        #[cfg(target_arch = "x86_64")]
         self.Unmap(MemoryDef::PAGE_SIZE, MemoryDef::PHY_LOWER_ADDR, &*PAGE_MGR)?;
+
         self.Unmap(MemoryDef::PHY_UPPER_ADDR, MemoryDef::LOWER_TOP, &*PAGE_MGR)?;
         let pt: *mut PageTable = self.GetRoot() as *mut PageTable;
 

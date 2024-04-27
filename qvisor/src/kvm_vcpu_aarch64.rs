@@ -1,5 +1,7 @@
 use std::os::fd::AsRawFd;
 use std::sync::atomic::Ordering;
+use std::thread::sleep;
+use std::time::Duration;
 
 use kvm_bindings::{kvm_vcpu_events, kvm_vcpu_events__bindgen_ty_1, kvm_vcpu_init};
 use libc::{gettid, clock_gettime, clockid_t, timespec};
@@ -9,6 +11,7 @@ use super::qlib::common::{Result, Error};
 use crate::qlib::kernel::IOURING;
 use crate::qlib::linux::time::Timespec;
 use crate::qlib::qmsg::{Print, QMsg};
+use crate::qlib::vcpu_mgr::CPULocal;
 use crate::vmspace::VMSpace;
 use crate::{KVMVcpu, VMS, kvm_vcpu::SetExitSignal};
 use crate::qlib::singleton::Singleton;
@@ -20,7 +23,7 @@ use crate::KERNEL_IO_THREAD;
 use crate::SHARE_SPACE;
 use crate::syncmgr::SyncMgr;
 use crate::qlib::perf_tunning::PerfPrint;
-use crate::runc::runtime::vm::{SetExitStatus, VirtualMachine};
+use crate::runc::runtime::vm::{ClearDump, Dump, SetExitStatus, VirtualMachine};
 
 const _KVM_ARM_VCPU_PSCI_0_2: u32 = 2;
 const _KVM_ARM_VCPU_INIT: u64 = 0x4020aeae;
@@ -147,7 +150,8 @@ impl KVMVcpu {
             let kvmRet = match self.vcpu.run() {
                 Ok(ret) => ret,
                 Err(e) => {
-                    error!("kvm vcpu exit {}", e);
+                    raw!(0x1001, 0, 0, CPULocal::CpuId() as u64);
+                    //error!("kvm vcpu exit {}", e);
                     if e.errno() == SysErr::EINTR {
                         self.vcpu.set_kvm_immediate_exit(0);
                         self.dump()?;
@@ -157,9 +161,12 @@ impl KVMVcpu {
                             VcpuExit::Intr
                         }
                     } else {
-                        self.backtrace()?;
-                        error!("vcpu error: {:?}", e);
-                        panic!("kvm virtual cpu[{}] run failed: Error {:?}", self.id, e)
+                        raw!(0x1002, e.errno() as u64, 0, CPULocal::CpuId() as u64);
+                        sleep(Duration::from_secs(300));
+                    //    self.backtrace()?;
+                        //error!("vcpu error: {:?}", e);
+                        //panic!("kvm virtual cpu[{}] run failed: Error {:?}", self.id, e)
+                        ::std::process::exit(1);
                     }
                 }
             };
@@ -236,6 +243,19 @@ impl KVMVcpu {
     }
 
     pub fn dump(&self) -> Result<()> {
+        if !Dump(self.id) {
+            return Ok(());
+        }
+        defer!(ClearDump(self.id));
+        
+        let pstate = self.vcpu.get_one_reg(_KVM_ARM64_REGS_PSTATE).map_err(|e| Error::SysError(e.errno()))?;
+        let current_el = pstate & 0x3;
+        let isUser = current_el == 0;
+        if isUser {
+            error!("vcpu {} is in user mode, skip", self.id);
+            return Ok(());
+        }
+        self.backtrace()?; 
         Ok(())
     }
 
@@ -438,8 +458,7 @@ impl KVMVcpu {
             qlib::HYPERCALL_VCPU_FREQ => {
                 let data = para1;
 
-                // TODO get cpu freq
-                let freq = 1000 * 1000 * 1000;
+                let freq = self.get_frequency()?;
                 unsafe {
                     let call = &mut *(data as *mut VcpuFeq);
                     call.res = freq as i64;

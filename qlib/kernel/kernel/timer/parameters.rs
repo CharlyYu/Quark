@@ -146,8 +146,8 @@ pub fn ErrorAdjust(
         // parameters were created! We definitely can't correct the
         // error by then.
         return Err(Error::Common(format!(
-            "old now time computation overflowed2. params = {:?}, now = {}",
-            prevParams, now
+            "old now time computation overflowed2. params = {:?}, now = {}, nextNS: {}, newParams: {:?}",
+            prevParams, now, nextNS, newParams
         )));
     }
 

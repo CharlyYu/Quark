@@ -154,7 +154,8 @@ impl TimeKeeperInternal {
         //super::super::super::perflog::THREAD_COUNTS.lock().Print(true);
         //super::super::super::AllocatorPrint();
 
-        assert!(self.inited.load(Ordering::Acquire), "TimeKeeper not inited");
+        assert!(self.inited.load(Ordering::SeqCst), "TimeKeeper not inited");
+        error!("=========update clocks");
         let (monotonicParams, monotonicOk, realtimeParams, realtimeOk) = self.clocks.Update();
 
         let mut p: VdsoParams = VdsoParams::default();
@@ -210,7 +211,8 @@ pub struct TimeKeeperClock {
 
 impl TimeKeeperClock {
     pub fn Now(&self) -> Time {
-        let now = self.tk.GetTime(self.c).expect("timekeeperClock Now fail");
+        //let now = self.tk.GetTime(self.c).expect("timekeeperClock Now fail");
+        let now = self.tk.GetTime(self.c).unwrap_or_default();
         return Time::FromNs(now);
     }
 

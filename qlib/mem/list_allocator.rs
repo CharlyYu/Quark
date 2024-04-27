@@ -666,10 +666,11 @@ impl FreeMemBlockMgr {
 
     pub fn Alloc(&mut self) -> Option<*mut u8> {
         if self.count != self.list.count as usize {
-            error!(
-                "FreeMemBlockMgr::Alloc {}/{}/{}",
-                self.size, self.count, self.list.count
-            );
+            // error!(
+            //     "FreeMemBlockMgr::Alloc {}/{}/{}",
+            //     self.size, self.count, self.list.count
+            // );
+            raw!(0x1011, self.count as u64, self.list.count as u64, CPULocal::CpuId() as u64);
         }
 
         if self.count > 0 {
@@ -695,10 +696,11 @@ impl FreeMemBlockMgr {
 
     pub fn Dealloc(&mut self, ptr: *mut u8, _heap: &QMutex<Heap<ORDER>>) {
         if self.count != self.list.count as usize {
-            error!(
-                "FreeMemBlockMgr::Dealloc {}/{}/{}",
-                self.size, self.count, self.list.count
-            );
+            // error!(
+            //     "FreeMemBlockMgr::Dealloc {}/{}/{}",
+            //     self.size, self.count, self.list.count
+            // );
+            raw!(0x1014, self.count as u64, self.list.count as u64, CPULocal::CpuId() as u64);
         }
         self.count += 1;
         self.list.Push(ptr as u64);
@@ -712,10 +714,11 @@ impl FreeMemBlockMgr {
         }
 
         if self.count != self.list.count as usize {
-            error!(
-                "FreeMemBlockMgr::Dealloc {}/{}/{}",
-                self.size, self.count, self.list.count
-            );
+            // error!(
+            //     "FreeMemBlockMgr::Dealloc {}/{}/{}",
+            //     self.size, self.count, self.list.count
+            // );
+            raw!(0x1011, self.count as u64, self.list.count as u64, CPULocal::CpuId() as u64);
         }
 
         self.count -= 1;
@@ -778,7 +781,7 @@ impl MemList {
 
     pub fn Push(&mut self, addr: u64) {
         if addr % self.size != 0 {
-            raw!(235, addr, self.size, 0);
+            raw!(0x235, addr, self.size, 0);
             panic!("Push next fail");
         }
 
@@ -798,7 +801,8 @@ impl MemList {
     pub fn Pop(&mut self) -> u64 {
         if self.head == 0 {
             if self.count != 0 {
-                error!("MemList::pop self.size is {}/{}", self.size, self.count);
+                //error!("MemList::pop self.size is {}/{}", self.size, self.count);
+                raw!(0x1013, self.count as u64, 0, CPULocal::CpuId() as u64);
             }
 
             return 0;
@@ -819,8 +823,12 @@ impl MemList {
             self.count,
             next
         );
+        if self.size == 0 {
+            raw!(0x1015, self.size as u64, 0, CPULocal::CpuId() as u64);
+            panic!("size zero");
+        }
         if next % self.size != 0 {
-            raw!(0x234, next, self.size as u64, 0);
+            raw!(0x234, next, self.size as u64, CPULocal::CpuId() as u64);
             panic!("Pop next fail");
         }
         //assert!(next % self.size == 0, "Pop next is {:x}/size is {:x}", next, self.size);

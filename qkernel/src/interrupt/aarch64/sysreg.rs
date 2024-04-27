@@ -26,6 +26,7 @@ pub enum SysmovResult {
 }
 
 pub fn try_emulate_mrs(pc: u64) -> SysmovResult {
+    debug!("=======try_emulate_mrs: {:x}", pc);
     match unsafe { read_user_opcode(pc) } {
         Some(opcode) => sysreg_mov_el0(opcode),
         _ => SysmovResult::Invalid,

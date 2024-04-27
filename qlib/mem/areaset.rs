@@ -167,11 +167,45 @@ impl<T: AreaValue> AreaGap<T> {
     }
 
     pub fn NextSeg(&self) -> AreaSeg<T> {
-        if !self.Ok() {
+        if unsafe {&self.0 as *const _ as u64} == 0 {
+            error!("=====area entry in area gap is 0");
             return AreaSeg::default();
         }
+        if unsafe {&self.0.0 as *const _ as u64} == 0 {
+            error!("=====the Arc in AreaEntry is 0");
+            return AreaSeg::default();
+        }
+        {
+            let res = self.0.lock();
+            info!("=========hahahahaha");
+            if unsafe {&res as *const _ as u64} == 0 {
+                error!("========the mutex guard is 0");
+                return AreaSeg::default();
+            }
+            if unsafe {&res.next as *const _ as u64} == 0 {
+                error!("========the next is 0");
+                return AreaSeg::default();
+            }
+            let c = res.next.clone();
+            if c.is_none() {
+                info!("=========hihihihihi");
+                return AreaSeg::default();
+            }
+            error!("====got area entry");
+            return AreaSeg::New(c.unwrap());
 
-        return AreaSeg(self.0.NextEntry().unwrap()); //Gap's entry won't be tail
+        }
+        // if !self.Ok() {
+        //     info!("=========hihihihihi");
+        //     return AreaSeg::default();
+        // }
+
+        // if let Some(o) = self.0.NextEntry() {
+        //     AreaSeg(o)
+        // } else {
+        //     error!("===========area next nothing");
+        //     return AreaSeg::default();
+        // }
     }
 
     pub fn PrevGap(&self) -> Self {
@@ -348,7 +382,12 @@ impl<T: AreaValue> AreaEntry<T> {
             return None;
         }
 
-        let tmp = self.lock().next.clone().unwrap();
+        let tmp = if let Some(a) = self.lock().next.clone() {
+            a
+        } else {
+            error!("===========next in AreaEntry is none");
+            return None;
+        };
         return Some(tmp);
     }
 

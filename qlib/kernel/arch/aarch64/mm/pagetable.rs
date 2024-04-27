@@ -51,7 +51,9 @@ impl PageTableEntry {
     /// Sets this entry to zero.
     #[inline]
     pub fn set_unused(&mut self) {
+        raw!(0x811, self as *const _ as u64, 0, 0);
         self.entry = 0;
+        raw!(0x812, 0,0,0);
     }
 
     /// Returns the flags of this entry.

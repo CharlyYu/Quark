@@ -169,6 +169,8 @@ pub fn InitSingleton() {
 pub static GLOBAL_ALLOCATOR: HostAllocator = HostAllocator::New();
 
 fn main() {
+
+    std::env::set_var("RUST_BACKTRACE", "full");
     InitSingleton();
 
     let cmd;
